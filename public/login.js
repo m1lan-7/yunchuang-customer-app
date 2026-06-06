@@ -19,10 +19,15 @@ function describeError(error) {
   }
 }
 
-function showPasswordLogin() {
-  intro.textContent = "请输入团队统一访问密码";
+function hasFeishuBridge() {
+  return Boolean(window.tt?.requestAccess || window.tt?.requestAuthCode);
+}
+
+function showPasswordLogin(text = "请输入团队统一访问密码") {
+  intro.textContent = text;
   passwordLabel.hidden = false;
   loginButton.hidden = false;
+  authMode = authMode === "feishu-password" ? "feishu-password" : "password";
   input.focus();
 }
 
@@ -83,20 +88,38 @@ async function checkStatus() {
   }
   authMode = data.mode || "disabled";
   feishuAppId = data.feishuAppId || "";
+
   if (authMode === "feishu") {
     await loginWithFeishu();
     return;
   }
+
+  if (authMode === "feishu-password") {
+    if (!hasFeishuBridge()) {
+      showPasswordLogin("团队成员请使用访问密码进入");
+      return;
+    }
+    try {
+      await loginWithFeishu();
+      return;
+    } catch (error) {
+      showPasswordLogin("飞书免登暂不可用，也可以用团队访问密码进入");
+      showMessage(describeError(error));
+      return;
+    }
+  }
+
   if (authMode === "password") {
     showPasswordLogin();
     return;
   }
+
   window.location.href = "/";
 }
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (authMode !== "password") return;
+  if (authMode !== "password" && authMode !== "feishu-password") return;
   showMessage("");
   const response = await fetch("/api/login", {
     method: "POST",
@@ -112,5 +135,8 @@ form.addEventListener("submit", async (event) => {
 });
 
 checkStatus().catch((error) => {
-  showMessage(describeError(error) || "暂时无法完成免登");
+  if (authMode === "feishu-password") {
+    showPasswordLogin("团队成员请使用访问密码进入");
+  }
+  showMessage(describeError(error) || "暂时无法完成登录");
 });

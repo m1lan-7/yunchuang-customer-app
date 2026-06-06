@@ -18,6 +18,13 @@ const FEISHU_APP_SECRET = valueEnv("FEISHU_APP_SECRET");
 const FEISHU_AUTH_ENABLED = Boolean(FEISHU_APP_ID && FEISHU_APP_SECRET);
 const PASSWORD_AUTH_ENABLED = Boolean(APP_PASSWORD || APP_PASSWORD_HASH);
 const AUTH_ENABLED = FEISHU_AUTH_ENABLED || PASSWORD_AUTH_ENABLED;
+const AUTH_MODE = FEISHU_AUTH_ENABLED && PASSWORD_AUTH_ENABLED
+  ? "feishu-password"
+  : FEISHU_AUTH_ENABLED
+    ? "feishu"
+    : PASSWORD_AUTH_ENABLED
+      ? "password"
+      : "disabled";
 const SESSION_COOKIE = "yc_session";
 const SESSION_TTL_MS = Number(process.env.SESSION_TTL_HOURS || 12) * 60 * 60 * 1000;
 const sessions = new Map();
@@ -177,7 +184,7 @@ function authStatus(req) {
   const session = authenticated ? getSession(req) : null;
   return {
     enabled: AUTH_ENABLED,
-    mode: FEISHU_AUTH_ENABLED ? "feishu" : PASSWORD_AUTH_ENABLED ? "password" : "disabled",
+    mode: AUTH_MODE,
     authenticated,
     feishuAppId: FEISHU_AUTH_ENABLED ? FEISHU_APP_ID : "",
     user: session?.user || null,
@@ -987,7 +994,7 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === "/api/login" && req.method === "POST") {
       const body = await readBody(req);
-      if (FEISHU_AUTH_ENABLED) return sendJson(res, 400, { ok: false, message: "当前应用已启用飞书免登，请从飞书客户端打开" });
+      if (!PASSWORD_AUTH_ENABLED) return sendJson(res, 400, { ok: false, message: "未配置团队访问密码" });
       if (!verifyPassword(body.password)) return sendJson(res, 403, { ok: false, message: "密码不正确" });
       setSession(res, { authType: "password", name: "共享账号" });
       return sendJson(res, 200, { ok: true, authenticated: true });
@@ -1013,7 +1020,7 @@ const server = http.createServer(async (req, res) => {
         ok: true,
         mode: DATABASE_URL ? "postgres-manual" : "local-manual",
         source: DATABASE_URL ? "云端手动台账" : "本机手动台账",
-        auth: FEISHU_AUTH_ENABLED ? "feishu" : PASSWORD_AUTH_ENABLED ? "shared-password" : "disabled",
+        auth: AUTH_MODE,
       });
     }
 
