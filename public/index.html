@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>云创客户跟进 App</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="hero-copy">
+        <p class="eyebrow">温州龙湖·云创未来社区</p>
+        <h1>客户跟进指挥部</h1>
+        <p class="hero-sub">按月盘客户池，按日铆到访，按人追动作</p>
+      </div>
+      <div class="hero-visual" aria-hidden="true"></div>
+      <div class="status-strip">
+        <span id="sourceStatus">本机手动台账</span>
+        <button id="refreshBtn" class="icon-button" title="刷新本机数据" aria-label="刷新本机数据">↻</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="control-band">
+        <div class="tabs">
+          <button class="tab active" data-level="level2">二级客户跟进</button>
+          <button class="tab" data-level="level1">一级客户转访</button>
+        </div>
+        <div class="date-controls">
+          <label>
+            <span>统计周期</span>
+            <select id="dateScope">
+              <option value="month">本月</option>
+              <option value="year">整年</option>
+              <option value="all">全部</option>
+            </select>
+          </label>
+          <label id="monthWrap">
+            <span>月份</span>
+            <input id="monthPicker" type="month" />
+          </label>
+          <label id="yearWrap">
+            <span>年份</span>
+            <input id="yearPicker" type="number" min="2020" max="2035" />
+          </label>
+        </div>
+      </section>
+
+      <section class="summary-grid">
+        <div class="panel due-panel">
+          <div class="panel-head">
+            <div>
+              <h2 id="dueTitle">预计明日到访客户名单</h2>
+              <span id="todayLabel">按下次预计到访时间统计</span>
+            </div>
+            <div class="mini-segments" id="dueRange">
+              <button data-range="today">今日</button>
+              <button class="active" data-range="tomorrow">明日</button>
+              <button data-range="week">本周</button>
+            </div>
+          </div>
+          <div id="dueTodayList" class="due-list"></div>
+        </div>
+
+        <div class="panel import-panel">
+          <div class="panel-head compact">
+            <div>
+              <h2>台账更新（每晚更新）</h2>
+              <span id="importHint">选择台账类型后粘贴表格内容</span>
+            </div>
+            <div class="mini-segments" id="importLevelSwitch">
+              <button class="active" data-import-level="level2">二级</button>
+              <button data-import-level="level1">一级</button>
+            </div>
+          </div>
+          <textarea id="importText" spellcheck="false" placeholder="粘贴二级客户表格内容"></textarea>
+          <button id="importBtn" class="primary-button import-action">保存当前台账</button>
+        </div>
+
+        <div class="panel confirmed-transfer-panel" id="confirmedTransferPanel" hidden>
+          <div class="panel-head compact">
+            <div>
+              <h2>待确认转访客户名单</h2>
+              <span id="confirmedTransferMeta">已电话确认可到访</span>
+            </div>
+          </div>
+          <div id="confirmedTransferList" class="due-list confirmed-transfer-list"></div>
+        </div>
+      </section>
+
+      <section class="kpi-grid" id="kpiGrid"></section>
+
+      <section class="panel level1-workbench" id="level1Workbench" hidden>
+        <div class="panel-head">
+          <div>
+            <h2>一级转访工作台</h2>
+            <span>按每日约访动作推进：先铆定，再确认，未到访及时二约</span>
+          </div>
+        </div>
+        <div class="workflow-grid" id="level1Workflow"></div>
+      </section>
+
+      <section class="insight-layout">
+        <div class="panel chart-panel module-panel">
+          <div class="panel-head">
+            <div>
+              <h2>四组客户池对比</h2>
+              <span>点击小组查看客户明细</span>
+            </div>
+          </div>
+          <div id="moduleChart" class="module-cards"></div>
+        </div>
+        <div class="panel chart-panel owner-panel">
+          <div class="panel-head">
+            <div>
+              <h2>人员客户池分布</h2>
+              <span>一级+二级合并查看，点击人员看明细</span>
+            </div>
+            <select id="ownerGroupFilter" class="compact-select">
+              <option value="">全部小组</option>
+              <option value="销冠特工">销冠特工</option>
+              <option value="花开富贵">花开富贵</option>
+              <option value="乘风破局">乘风破局</option>
+              <option value="KA">KA</option>
+            </select>
+          </div>
+          <div id="ownerChart" class="owner-grid"></div>
+        </div>
+        <div class="panel chart-panel c-panel" id="cPanel">
+          <div class="panel-head">
+            <div>
+              <h2>C级意向客户名单</h2>
+              <span>A级=已成交，C级=意向度高，D级=低意向</span>
+            </div>
+            <div class="inline-filters">
+              <select id="cGroupFilter" class="compact-select">
+                <option value="">全部小组</option>
+                <option value="销冠特工">销冠特工</option>
+                <option value="花开富贵">花开富贵</option>
+                <option value="乘风破局">乘风破局</option>
+                <option value="KA">KA</option>
+              </select>
+              <select id="cOwnerFilter" class="compact-select">
+                <option value="">全部人员</option>
+              </select>
+              <button id="showCBtn" class="text-button">弹窗查看</button>
+            </div>
+          </div>
+          <div id="cCustomerList" class="c-list"></div>
+        </div>
+      </section>
+
+      <section class="toolbar">
+        <label>
+          <span>人员</span>
+          <select id="ownerFilter"></select>
+        </label>
+        <label>
+          <span>评级/状态</span>
+          <select id="ratingFilter"></select>
+        </label>
+        <label>
+          <span>小组</span>
+          <select id="moduleFilter"></select>
+        </label>
+        <label>
+          <span>购房方式</span>
+          <select id="purchaseFilter">
+            <option value="">全部方式</option>
+            <option value="cash">现金</option>
+            <option value="ticket">房票</option>
+          </select>
+        </label>
+        <label>
+          <span>置业顾问</span>
+          <select id="salesFilter"></select>
+        </label>
+        <label class="search">
+          <span>搜索</span>
+          <input id="keywordInput" type="search" placeholder="客户、人员、端口、情况关键词" />
+        </label>
+        <label class="risk-toggle">
+          <input id="riskOnly" type="checkbox" />
+          <span>只看风险</span>
+        </label>
+      </section>
+
+      <section class="table-wrap">
+        <div class="table-head">
+          <div>
+            <h2 id="tableTitle">二级客户明细</h2>
+            <span id="tableCount">读取中</span>
+          </div>
+          <p>点击 KPI、小组、人员或C级名单可直接下钻到客户明细。</p>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead id="tableHead"></thead>
+            <tbody id="customerTable"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="followDialog">
+      <form method="dialog" class="follow-card">
+        <div class="dialog-head">
+          <div>
+            <h2 id="followTitle">客户跟进</h2>
+            <span id="followMeta"></span>
+          </div>
+          <button class="icon-button subtle" value="cancel" aria-label="关闭">×</button>
+        </div>
+        <div class="follow-facts">
+          <div class="follow-info">
+            <span id="firstVisitLabel">第一次客户到访时间</span>
+            <strong id="firstVisitDate">未记录</strong>
+          </div>
+          <div class="follow-info">
+            <span>最近一次跟进时间</span>
+            <strong id="lastFollowTime">未记录</strong>
+          </div>
+          <div class="follow-info">
+            <span id="acquiredDateLabel">获客日期</span>
+            <strong id="acquiredDate">未记录</strong>
+          </div>
+        </div>
+        <label>
+          <span id="followResultLabel">到访确认/今日结果</span>
+          <select id="todayArrived">
+            <option value="">待跟进</option>
+            <option value="确认到访">确认到访</option>
+            <option value="已到访">已到访</option>
+            <option value="未到访">未到访</option>
+            <option value="已认购">已认购</option>
+          </select>
+        </label>
+        <label>
+          <span id="latestSituationLabel">未到访/复盘最新情况</span>
+          <textarea id="latestSituation" placeholder="例如：客户临时有事，已改约周六；客户预算卡在130万，需销售给底价口径"></textarea>
+        </label>
+        <label>
+          <span id="nextVisitLabel">下次预计到访时间</span>
+          <input id="nextVisitDate" type="date" />
+        </label>
+        <div class="dialog-actions">
+          <button value="cancel" class="text-button">取消</button>
+          <button id="saveFollowBtn" value="default" class="primary-button">保存跟进</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="listDialog">
+      <div class="list-card">
+        <div class="dialog-head">
+          <div>
+            <h2 id="listTitle">客户名单</h2>
+            <span id="listMeta"></span>
+          </div>
+          <button id="closeListBtn" class="icon-button subtle" aria-label="关闭">×</button>
+        </div>
+        <div class="list-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>层级</th>
+                <th>客户</th>
+                <th>归属</th>
+                <th>端口/评级</th>
+                <th>预计到访</th>
+                <th>客户情况</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="listTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </dialog>
+
+    <div id="toast" class="toast hidden"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>

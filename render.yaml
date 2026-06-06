@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: yunchuang-customer-app
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: FEISHU_APP_ID
+        sync: false
+      - key: FEISHU_APP_SECRET
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: yunchuang-customer-db
+          property: connectionString
+
+databases:
+  - name: yunchuang-customer-db
+    plan: free

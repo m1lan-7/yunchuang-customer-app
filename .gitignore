@@ -1,0 +1,9 @@
+node_modules/
+.env
+*.log
+server-*.out.log
+server-*.err.log
+data/*.json
+data/backups/
+dashboard-preview*.png
+.DS_Store
