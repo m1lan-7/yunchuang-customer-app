@@ -1149,6 +1149,30 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { ok: true, backup });
     }
 
+    if (url.pathname === "/api/restore" && req.method === "POST") {
+      const body = await readBody(req);
+      const incoming = body.store || body;
+      if (!Array.isArray(incoming.level1) || !Array.isArray(incoming.level2)) {
+        return sendJson(res, 400, { ok: false, message: "备份文件格式不正确，缺少一级或二级客户数据" });
+      }
+      const beforeBackup = await createBackup("before-restore");
+      const restored = normalizeStore({
+        ...incoming,
+        source: DATABASE_URL ? "postgres-manual" : "local-manual",
+      });
+      appendAudit(restored, "restore", { level1: restored.level1.length, level2: restored.level2.length, beforeBackup }, sessionActor(req));
+      const saved = await saveStore(restored);
+      return sendJson(res, 200, {
+        ok: true,
+        updatedAt: saved.updatedAt,
+        backup: beforeBackup,
+        totals: {
+          level1: saved.level1.length,
+          level2: saved.level2.length,
+        },
+      });
+    }
+
     if (AUTH_ENABLED && !isAuthenticated(req)) {
       if (url.pathname === "/" || url.pathname === "/index.html") {
         req.url = "/login.html";

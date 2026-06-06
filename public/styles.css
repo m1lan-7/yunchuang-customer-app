@@ -76,6 +76,27 @@ body {
   font-size: 13px;
 }
 
+.restore-card p strong {
+  color: var(--ink);
+}
+
+.restore-preview {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f7fafc;
+  color: var(--muted);
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.restore-link {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
 button,
 input,
 select,
