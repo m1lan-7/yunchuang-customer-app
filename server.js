@@ -1013,7 +1013,7 @@ const server = http.createServer(async (req, res) => {
         ok: true,
         mode: DATABASE_URL ? "postgres-manual" : "local-manual",
         source: DATABASE_URL ? "云端手动台账" : "本机手动台账",
-        auth: AUTH_ENABLED ? "shared-password" : "disabled",
+        auth: FEISHU_AUTH_ENABLED ? "feishu" : PASSWORD_AUTH_ENABLED ? "shared-password" : "disabled",
       });
     }
 
