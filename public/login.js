@@ -8,6 +8,17 @@ const loginButton = document.querySelector("#loginButton");
 let authMode = "disabled";
 let feishuAppId = "";
 
+function describeError(error) {
+  if (!error) return "";
+  if (typeof error === "string") return error;
+  if (error.message) return error.message;
+  try {
+    return JSON.stringify(error);
+  } catch (formatError) {
+    return String(error);
+  }
+}
+
 function showPasswordLogin() {
   intro.textContent = "请输入团队统一访问密码";
   passwordLabel.hidden = false;
@@ -27,7 +38,7 @@ function requestFeishuCode(appId) {
           appID: appId,
           scopeList: [],
           success: (info) => resolve(info.code),
-          fail: (error) => reject(error),
+          fail: (error) => reject(new Error(`requestAccess失败：${describeError(error)}`)),
         });
         return;
       }
@@ -35,7 +46,7 @@ function requestFeishuCode(appId) {
         window.tt.requestAuthCode({
           appId,
           success: (info) => resolve(info.code),
-          fail: (error) => reject(error),
+          fail: (error) => reject(new Error(`requestAuthCode失败：${describeError(error)}`)),
         });
         return;
       }
@@ -101,5 +112,5 @@ form.addEventListener("submit", async (event) => {
 });
 
 checkStatus().catch((error) => {
-  showMessage(error.message || "暂时无法完成免登");
+  showMessage(describeError(error) || "暂时无法完成免登");
 });
