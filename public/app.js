@@ -116,6 +116,11 @@ function customerType(item) {
   return item.isHouseTicket ? "房票" : "现金";
 }
 
+function renderBlockers(item) {
+  const blockers = item.blockers?.length ? item.blockers : ["待补充"];
+  return `<span class="blocker-tags">${blockers.map((label) => `<b class="blocker-tag">${label}</b>`).join("")}</span>`;
+}
+
 function isVisitConfirmed(item) {
   return ["确认到访", "已到访", "已认购"].includes(item.followUp?.todayArrived);
 }
@@ -130,7 +135,7 @@ function isLevel1Converted(item) {
 
 function workflowCustomerLine(item) {
   const result = fmt(item.followUp?.todayArrived, "待跟进");
-  return `${fmt(item.owner)}｜${fmt(item.port)}｜${fmt(item.expectedVisitDate, "未铆定")}｜${result}`;
+  return `${fmt(item.owner)}｜${fmt(item.port)}｜${fmt(item.expectedVisitDate, "未锚定")}｜${result}`;
 }
 
 function transferListItem(item, extraClass = "") {
@@ -139,7 +144,7 @@ function transferListItem(item, extraClass = "") {
   return `
     <button class="due-item level1-due ${extraClass} ${isExpired ? "expired-transfer" : ""}" data-id="${item.recordId}">
       <span class="due-main">
-        <strong>${fmt(item.expectedVisitDate, "未铆定")}｜一级｜${fmt(item.name)} · ${fmt(item.owner)}</strong>
+        <strong>${fmt(item.expectedVisitDate, "未锚定")}｜一级｜${fmt(item.name)} · ${fmt(item.owner)}</strong>
         <span>${fmt(item.module)}｜${fmt(item.port)}｜${fmt(item.rating)}｜${status}</span>
       </span>
       <span class="due-note">${fmt(item.note || item.followUp?.latestSituation, "暂无客户情况")}</span>
@@ -236,13 +241,13 @@ function renderKpis() {
           kpi("有效客户", s.effective, `有效率 ${s.effectiveRate}`, "accent-green", { rating: "C" }),
           kpi("已成交客户", s.closed, "A级客户", "accent-red", { rating: "A" }),
           kpi("C级意向客户", s.cLevel, "到访且意向度高", "accent-gold", { rating: "C" }),
-          kpi("已铆定到访", s.duePinned, "已填写下次到访", "accent-blue", { dueOnly: true }),
-          kpi("风险待跟进", s.riskCount, "未铆定/未复访/房票", "accent-red critical-risk", { risk: true }),
+          kpi("已锚定到访", s.duePinned, "已填写下次到访", "accent-blue", { dueOnly: true }),
+          kpi("风险待跟进", s.riskCount, "未锚定/未复访/房票", "accent-red critical-risk", { risk: true }),
         ].join("")
       : [
           kpi("一级客户池", s.total, "当前周期首录", "accent-blue", {}),
-          kpi("未铆定到访", s.unpinned, "无预计到访时间", "accent-gold", { stage: "unpinned" }),
-          kpi("已铆定待确认", s.pendingConfirm, "需电话确认", "accent-blue", { stage: "pendingConfirm" }),
+          kpi("未锚定到访", s.unpinned, "无预计到访时间", "accent-gold", { stage: "unpinned" }),
+          kpi("已锚定待确认", s.pendingConfirm, "需电话确认", "accent-blue", { stage: "pendingConfirm" }),
           kpi("确认到访", s.confirmed, "已确认能到访", "accent-green", { stage: "confirmed" }),
           kpi("已转访", s.converted, `转访率 ${s.visitRate}`, "accent-green", { stage: "converted" }),
           kpi("未到访待二约", s.revisit, "需重新约时间", "accent-gold", { stage: "revisit" }),
@@ -352,18 +357,30 @@ function renderCCustomers(list = []) {
   const filtered = (list || []).filter(
     (item) => (!state.cGroup || item.module === state.cGroup) && (!state.cOwner || item.owner === state.cOwner),
   );
-  $("#cCustomerList").innerHTML = filtered.length
-    ? filtered
+  const total = filtered.length;
+  const order = ["价格", "房源", "决策人", "距离", "观望", "待补充"];
+  const stats = order
+    .map((label) => {
+      const customers = filtered.filter((item) => (item.blockers?.length ? item.blockers : ["待补充"]).includes(label));
+      return { label, customers, count: customers.length };
+    })
+    .filter((item) => item.count > 0);
+  $("#cCustomerList").innerHTML = stats.length
+    ? stats
         .map(
           (item) => `
-            <button class="c-item" data-id="${item.recordId}">
-              <strong>${fmt(item.name)} · ${fmt(item.owner)}</strong>
-              <span>${fmt(item.module)}｜${fmt(item.port)}｜${fmt(item.area, "未填面积")}｜下访 ${fmt(item.expectedVisitDate, "未铆定")}</span>
+            <button class="resistance-card" data-blocker="${item.label}">
+              <span>
+                <strong>${item.label}</strong>
+                <em>${total ? `${((item.count / total) * 100).toFixed(1)}%` : "0.0%"}</em>
+              </span>
+              <b>${item.count}</b>
+              <small>${item.customers.slice(0, 3).map((customer) => `${fmt(customer.name)}·${fmt(customer.owner)}`).join("、") || "暂无代表客户"}</small>
             </button>
           `,
         )
         .join("")
-    : `<div class="empty">当前周期暂无C级客户</div>`;
+    : `<div class="empty">当前周期暂无可统计抗性客户</div>`;
 }
 
 function renderLevel1Workflow() {
@@ -437,7 +454,7 @@ function renderDueCustomers() {
           `,
         )
         .join("")
-    : `<div class="empty">当前暂无${state.level === "level1" ? "待确认转访" : "已铆定到访"}客户</div>`;
+    : `<div class="empty">当前暂无${state.level === "level1" ? "待确认转访" : "已锚定到访"}客户</div>`;
 }
 
 function renderConfirmedTransfers() {
@@ -486,9 +503,9 @@ function tableColumns() {
       ["评级", (i) => `<span class="rating rating-${fmt(i.rating)}">${fmt(i.rating)}</span>`],
       ["现金/房票", (i) => `<span class="cash-type ${i.isHouseTicket ? "ticket" : ""}">${customerType(i)}</span>`],
       ["区域/面积", (i) => `<strong>${fmt(i.region, "")}</strong><span>${fmt(i.area, "")}</span>`],
-      ["到访/下访", (i) => `<strong>${fmt(i.visitDate, "未填到访")}</strong><span>${fmt(i.expectedVisitDate, "未铆定下访")}</span>`],
+      ["到访/下访", (i) => `<strong>${fmt(i.visitDate, "未填到访")}</strong><span>${fmt(i.expectedVisitDate, "未锚定下访")}</span>`],
       ["跟进状态", followCell],
-      ["风险", (i) => (i.risk ? `<span class="risk-tag">${i.risk}</span>` : `<span class="muted">无</span>`)],
+      ["客户卡点", renderBlockers],
       ["客户情况", (i) => `<span class="note-text">${fmt(i.note, "暂无客户情况")}</span>`],
       ["操作", actionCell],
     ];
@@ -498,10 +515,10 @@ function tableColumns() {
     ["归属人员/小组", (i) => `<strong>${fmt(i.owner)}</strong><span>${fmt(i.module)}</span>`],
     ["拓客途径", (i) => `<strong>${fmt(i.port)}</strong><span>${fmt(i.rawModule, "")}</span>`],
     ["获客日期", (i) => `<strong>${fmt(i.acquiredAt, "未填获客")}</strong>`],
-    ["预计到访", (i) => `<strong>${fmt(i.expectedVisitDate, "未铆定到访")}</strong><span>首次 ${fmt(i.plannedVisit, "未记录")}</span>`],
+    ["预计到访", (i) => `<strong>${fmt(i.expectedVisitDate, "未锚定到访")}</strong><span>首次 ${fmt(i.plannedVisit, "未记录")}</span>`],
     ["转访状态", (i) => `<span class="rating level1-rating">${fmt(i.rating)}</span>`],
     ["跟进结果", followCell],
-    ["风险", (i) => (i.risk ? `<span class="risk-tag">${i.risk}</span>` : `<span class="muted">无</span>`)],
+    ["客户卡点", renderBlockers],
     ["客户情况", (i) => `<span class="note-text">${fmt(i.note, "暂无客户情况")}</span>`],
     ["操作", actionCell],
   ];
@@ -547,7 +564,7 @@ function modalRow(item) {
       <td><strong>${fmt(item.name)}</strong><span>${fmt(item.displayPhone || item.phone, "无电话")}</span></td>
       <td><strong>${fmt(item.owner)}</strong><span>${fmt(item.module)}</span></td>
       <td><strong>${fmt(item.port)}</strong><span>${fmt(item.rating)}</span></td>
-      <td><strong>${fmt(item.expectedVisitDate, "未铆定")}</strong><span>${fmt(item.followUp?.todayArrived, "待跟进")}</span></td>
+      <td><strong>${fmt(item.expectedVisitDate, "未锚定")}</strong><span>${fmt(item.followUp?.todayArrived, "待跟进")}</span></td>
       <td><span class="note-text">${fmt(item.note, "暂无客户情况")}</span></td>
       <td>${followAction}</td>
     </tr>
@@ -563,6 +580,10 @@ async function openListModal(title, filter = {}, options = {}) {
   const levels = options.levels || [filter.level || state.level];
   const lists = await Promise.all(levels.map((level) => fetchCustomers(level, { ...filter, level: undefined })));
   const rows = lists.flat();
+  openRowsModal(title, rows);
+}
+
+function openRowsModal(title, rows = []) {
   state.modalCustomers = rows;
   $("#listTitle").textContent = title;
   $("#listMeta").textContent = `${rows.length}组客户｜${state.dateScope === "month" ? state.month : state.dateScope === "year" ? state.year : "全部周期"}`;
@@ -825,13 +846,19 @@ function bindEvents() {
     renderCharts();
   });
   $("#showCBtn").addEventListener("click", () =>
-    openListModal("C级意向客户名单", { level: "level2", rating: "C", module: state.cGroup, owner: state.cOwner }),
+    openListModal("客户抗性明细", { level: "level2", module: state.cGroup, owner: state.cOwner }),
   );
   $("#cCustomerList").addEventListener("click", (event) => {
-    const item = event.target.closest(".c-item");
-    if (!item) return;
-    const customer = (state.summary.level2.cCustomers || []).find((row) => row.recordId === item.dataset.id);
-    if (customer) openFollow(customer);
+    const card = event.target.closest(".resistance-card[data-blocker]");
+    if (!card) return;
+    const blocker = card.dataset.blocker;
+    const rows = (state.summary.level2.cCustomers || []).filter(
+      (item) =>
+        (!state.cGroup || item.module === state.cGroup) &&
+        (!state.cOwner || item.owner === state.cOwner) &&
+        (item.blockers?.length ? item.blockers : ["待补充"]).includes(blocker),
+    );
+    openRowsModal(`${blocker}卡点客户`, rows);
   });
   $("#customerTable").addEventListener("click", (event) => {
     const button = event.target.closest(".row-button");
@@ -879,3 +906,4 @@ function bindEvents() {
 syncDateControls();
 bindEvents();
 refreshAll();
+

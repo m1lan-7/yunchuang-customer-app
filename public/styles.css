@@ -448,7 +448,8 @@ textarea {
 }
 
 .due-item,
-.c-item {
+.c-item,
+.resistance-card {
   width: 100%;
   text-align: left;
   border: 1px solid #efd8aa;
@@ -484,6 +485,51 @@ textarea {
 .c-item {
   border-color: #d7e7d8;
   background: #f6fbf7;
+}
+
+.resistance-card {
+  border-color: #d7e3ea;
+  background: linear-gradient(180deg, #ffffff, #f7fafc);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 12px;
+  align-items: center;
+  min-height: 78px;
+}
+
+.resistance-card span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.resistance-card strong {
+  font-size: 15px;
+}
+
+.resistance-card em {
+  color: var(--muted);
+  font-style: normal;
+  font-size: 12px;
+}
+
+.resistance-card b {
+  min-width: 42px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #edf4fa;
+  color: #173e5d;
+  font-size: 22px;
+}
+
+.resistance-card small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .due-main,
@@ -558,7 +604,8 @@ textarea {
 .module-card:hover,
 .owner-chip:hover,
 .due-item:hover,
-.c-item:hover {
+.c-item:hover,
+.resistance-card:hover {
   border-color: #8db1c7;
   transform: translateY(-1px);
 }
@@ -1198,6 +1245,26 @@ td span {
   word-break: break-all;
   line-height: 1.25;
   padding: 3px 7px;
+}
+
+.blocker-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  max-width: 100%;
+}
+
+.blocker-tag {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 8px;
+  background: #edf4fa;
+  color: #173e5d;
+  font-size: 12px;
+  line-height: 1.3;
+  white-space: nowrap;
 }
 
 .cash-type {

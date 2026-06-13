@@ -702,7 +702,7 @@ function dueRangeMeta(params) {
     const week = weekRange(today);
     return { key: range, label: "预计本周到访", start: week.start, end: week.end };
   }
-  if (range === "all") return { key: range, label: "全部已铆定到访", start: "", end: "" };
+  if (range === "all") return { key: range, label: "全部已锚定到访", start: "", end: "" };
   const tomorrow = addDays(today, 1);
   return { key: "tomorrow", label: "预计明日到访", start: tomorrow, end: tomorrow };
 }
@@ -717,8 +717,8 @@ function isDueInRange(item, meta) {
 
 function riskForLevel2(item) {
   if (item.isClosed || item.rating === "A" || item.followUp?.todayArrived === "已认购") return "";
-  if (item.followUp?.todayArrived === "未到访") return "已标记未到访，需二次铆定";
-  if (item.isHighIntent && !item.expectedVisitDate) return "C级客户未铆定下次到访";
+  if (item.followUp?.todayArrived === "未到访") return "已标记未到访，需二次锚定";
+  if (item.isHighIntent && !item.expectedVisitDate) return "C级客户未锚定下次到访";
   if (item.daysSinceVisit !== null && item.daysSinceVisit >= 14 && !item.expectedVisitDate) return "超14天未复访计划";
   if (item.isHouseTicket) return "房票储备客户";
   return "";
@@ -728,15 +728,31 @@ function riskForLevel1(item) {
   if (item.sold || item.visited || item.rating === "A" || item.followUp?.todayArrived === "已认购") return "";
   if (item.followUp?.todayArrived === "未到访" && !item.expectedVisitDate) return "未到访待二次约访";
   if (!item.visited && item.daysSinceAcquire !== null && item.daysSinceAcquire >= 7 && !item.expectedVisitDate) {
-    return "首录超7天未铆定到访";
+    return "首录超7天未锚定到访";
   }
   if (!item.visited && item.followUp?.todayArrived !== "确认到访" && item.expectedVisitDate === todayText()) return "今日预计到访待确认";
   return "";
 }
 
+function customerBlockers(item) {
+  const text = [item.note, item.followUp?.latestSituation, item.port, item.rawModule]
+    .filter(Boolean)
+    .join(" ");
+  const rules = [
+    ["价格", /价格|单价|总价|太贵|贵了|预算|首付|月供|折扣|优惠|便宜|付款|贷|按揭/],
+    ["房源", /房源|楼层|户型|面积|朝向|采光|楼栋|房号|商铺|铺|位置|面宽|进深|107|128|143/],
+    ["决策人", /决策|老婆|老公|夫妻|家人|父母|妈妈|爸爸|儿子|女儿|领导|合伙|股东|商量/],
+    ["距离", /距离|太远|远了|通勤|交通|上班|学校|学区|配套|周边|附近/],
+    ["观望", /观望|考虑|再看|对比|竞品|绿城|保利|万科|滨江|暂时|不急|等等|等一等|以后|后面|有时间/],
+  ];
+  const blockers = rules.filter(([, pattern]) => pattern.test(text)).map(([label]) => label);
+  if (item.isHouseTicket && !blockers.includes("价格")) blockers.push("价格");
+  return blockers.length ? blockers : ["待补充"];
+}
+
 function withRisk(item) {
   const risk = item.level === "二级" ? riskForLevel2(item) : riskForLevel1(item);
-  return { ...item, risk };
+  return { ...item, risk, blockers: customerBlockers(item) };
 }
 
 function level1Stage(item) {
@@ -749,7 +765,7 @@ function level1Stage(item) {
 
 function buildLevel1Workflow(items) {
   const stages = [
-    ["unpinned", "待铆定"],
+    ["unpinned", "待锚定"],
     ["pendingConfirm", "待确认"],
     ["confirmed", "确认到访"],
     ["revisit", "未到访二约"],
@@ -822,7 +838,7 @@ function buildOwnerInsights(level1, level2) {
       const tags = [];
       if (total <= Math.max(2, Math.floor(avg * 0.55))) tags.push("低活跃");
       if (l1.length >= 3 && l2.length === 0) tags.push("一转二低");
-      if (cLevel > 0 && pinned < cLevel) tags.push("C级待铆定");
+      if (cLevel > 0 && pinned < cLevel) tags.push("C级待锚定");
       if (pinned === 0 && total > 0) tags.push("跟进不足");
       if (!tags.length) tags.push(total >= avg * 1.35 ? "高活跃" : "稳定");
       return {
@@ -861,7 +877,7 @@ function buildLevelSummary(level, items) {
       rating: topEntries(countBy(items, "rating")),
       module: buildModuleCards(items),
       owner: buildOwnerCards(items),
-      cCustomers: cLevel.slice(0, 12),
+      cCustomers: withRisks,
     };
   }
   const unpinned = items.filter((item) => level1Stage(item) === "unpinned");
@@ -927,6 +943,7 @@ function filterRecords(items, params) {
           item.area,
           item.note,
           item.risk,
+          item.blockers?.join(" "),
           item.followUp?.latestSituation,
         ]
           .join(" ")
@@ -1215,3 +1232,4 @@ setInterval(() => {
   lastBackupDate = date;
   createBackup("daily").catch((error) => console.error(`自动备份失败：${error.message}`));
 }, 30 * 60 * 1000);
+
