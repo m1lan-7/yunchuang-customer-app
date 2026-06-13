@@ -3,6 +3,8 @@ const state = {
   dateScope: "month",
   month: new Date().toISOString().slice(0, 7),
   year: String(new Date().getFullYear()),
+  customStart: new Date().toISOString().slice(0, 10),
+  customEnd: new Date().toISOString().slice(0, 10),
   dueRange: "tomorrow",
   importLevel: "level2",
   moduleMetric: "visits",
@@ -37,11 +39,20 @@ function fmtTime(value, fallback = "未记录") {
   return date.toLocaleString("zh-CN", { hour12: false });
 }
 
+function dateScopeLabel() {
+  if (state.dateScope === "month") return state.month;
+  if (state.dateScope === "year") return state.year;
+  if (state.dateScope === "custom") return `${state.customStart} 至 ${state.customEnd}`;
+  return "全部周期";
+}
+
 function scopeParams() {
   const params = new URLSearchParams();
   params.set("dateScope", state.dateScope);
   params.set("month", state.month);
   params.set("year", state.year);
+  params.set("startDate", state.customStart);
+  params.set("endDate", state.customEnd);
   params.set("dueRange", state.dueRange);
   return params;
 }
@@ -328,9 +339,8 @@ function renderOwnerCards(items = []) {
     ? filtered
         .map(
           (item) => `
-            <button class="owner-chip ${item.tags.includes("低活跃") || item.tags.includes("一转二低") ? "watch" : ""}" data-owner="${item.name}" data-module="${item.module}">
+            <button class="owner-chip ${item.tags.includes("低活跃") || item.tags.includes("一转二低") ? "watch" : ""}" data-owner="${item.name}" data-module="${item.module}" style="--owner-color:${moduleColors[item.module] || "#9aa6b2"}">
               <strong>${item.name}</strong>
-              <small>${item.module}</small>
               <em>${item.tags.map((tag) => `<b>${tag}</b>`).join("")}</em>
               <dl>
                 <div><dt>成交</dt><dd>${item.closed}</dd></div>
@@ -357,24 +367,29 @@ function renderCCustomers(list = []) {
   const filtered = (list || []).filter(
     (item) => (!state.cGroup || item.module === state.cGroup) && (!state.cOwner || item.owner === state.cOwner),
   );
-  const total = filtered.length;
+  const target = filtered.filter((item) => !isClosedCustomer(item));
+  const total = target.length;
   const order = ["价格", "房源", "决策人", "距离", "观望", "待补充"];
   const stats = order
     .map((label) => {
-      const customers = filtered.filter((item) => (item.blockers?.length ? item.blockers : ["待补充"]).includes(label));
+      const customers = target.filter((item) => (item.blockers?.length ? item.blockers : ["待补充"]).includes(label));
       return { label, customers, count: customers.length };
     })
-    .filter((item) => item.count > 0);
+    .filter((item) => item.count > 0)
+    .sort((a, b) => b.count - a.count || order.indexOf(a.label) - order.indexOf(b.label));
+  const max = Math.max(...stats.map((item) => item.count), 1);
   $("#cCustomerList").innerHTML = stats.length
     ? stats
         .map(
-          (item) => `
+          (item, index) => `
             <button class="resistance-card" data-blocker="${item.label}">
               <span>
                 <strong>${item.label}</strong>
                 <em>${total ? `${((item.count / total) * 100).toFixed(1)}%` : "0.0%"}</em>
               </span>
               <b>${item.count}</b>
+              <i class="resistance-rank">TOP ${index + 1}</i>
+              <i class="resistance-bar"><i style="width:${Math.max(8, Math.round((item.count / max) * 100))}%"></i></i>
               <small>${item.customers.slice(0, 3).map((customer) => `${fmt(customer.name)}·${fmt(customer.owner)}`).join("、") || "暂无代表客户"}</small>
             </button>
           `,
@@ -586,7 +601,7 @@ async function openListModal(title, filter = {}, options = {}) {
 function openRowsModal(title, rows = []) {
   state.modalCustomers = rows;
   $("#listTitle").textContent = title;
-  $("#listMeta").textContent = `${rows.length}组客户｜${state.dateScope === "month" ? state.month : state.dateScope === "year" ? state.year : "全部周期"}`;
+  $("#listMeta").textContent = `${rows.length}组客户｜${dateScopeLabel()}`;
   $("#listTable").innerHTML = rows.length ? rows.map(modalRow).join("") : `<tr><td colspan="7" class="empty">当前条件下暂无客户</td></tr>`;
   $("#listDialog").showModal();
 }
@@ -620,9 +635,13 @@ async function getJson(url, options) {
 function syncDateControls() {
   $("#monthPicker").value = state.month;
   $("#yearPicker").value = state.year;
+  $("#customStartDate").value = state.customStart;
+  $("#customEndDate").value = state.customEnd;
   $("#dateScope").value = state.dateScope;
   $("#monthWrap").style.display = state.dateScope === "month" ? "" : "none";
   $("#yearWrap").style.display = state.dateScope === "year" ? "" : "none";
+  $("#customStartWrap").hidden = state.dateScope !== "custom";
+  $("#customEndWrap").hidden = state.dateScope !== "custom";
 }
 
 async function loadSummary() {
@@ -696,9 +715,10 @@ function openFollow(customer) {
   state.activeCustomer = customer;
   $("#followTitle").textContent = `${customer.level}｜${customer.name}`;
   const isLevel1 = customer.level === "一级";
+  const phone = fmt(customer.phone || customer.displayPhone, "无电话");
   $("#followMeta").textContent = isLevel1
-    ? `${customer.owner}｜${customer.module}｜${customer.port}`
-    : `${customer.owner}｜${customer.module}｜${customer.port}｜置业顾问：${fmt(customer.sales, "无")}`;
+    ? `${customer.owner}｜${customer.module}｜${customer.port}｜电话：${phone}`
+    : `${customer.owner}｜${customer.module}｜${customer.port}｜置业顾问：${fmt(customer.sales, "无")}｜电话：${phone}`;
   $("#firstVisitLabel").textContent = isLevel1 ? "第一次客户预计到访时间" : "第一次客户到访时间";
   $("#firstVisitDate").textContent = fmt(customer.visitDate || customer.plannedVisit, "未记录");
   $("#lastFollowTime").textContent = fmtTime(customer.followUp?.updatedAt);
@@ -789,6 +809,18 @@ function bindEvents() {
     resetFilters();
     await refreshAll();
   });
+  $("#customStartDate").addEventListener("change", async () => {
+    state.customStart = $("#customStartDate").value || state.customStart;
+    if (state.customEnd < state.customStart) state.customEnd = state.customStart;
+    resetFilters();
+    await refreshAll();
+  });
+  $("#customEndDate").addEventListener("change", async () => {
+    state.customEnd = $("#customEndDate").value || state.customEnd;
+    if (state.customEnd < state.customStart) state.customStart = state.customEnd;
+    resetFilters();
+    await refreshAll();
+  });
   $("#dueRange").addEventListener("click", async (event) => {
     const button = event.target.closest("button[data-range]");
     if (!button) return;
@@ -856,6 +888,7 @@ function bindEvents() {
       (item) =>
         (!state.cGroup || item.module === state.cGroup) &&
         (!state.cOwner || item.owner === state.cOwner) &&
+        !isClosedCustomer(item) &&
         (item.blockers?.length ? item.blockers : ["待补充"]).includes(blocker),
     );
     openRowsModal(`${blocker}卡点客户`, rows);

@@ -31,6 +31,7 @@
             <span>统计周期</span>
             <select id="dateScope">
               <option value="month">本月</option>
+              <option value="custom">自选日期</option>
               <option value="year">整年</option>
               <option value="all">全部</option>
             </select>
@@ -42,6 +43,14 @@
           <label id="yearWrap">
             <span>年份</span>
             <input id="yearPicker" type="number" min="2020" max="2035" />
+          </label>
+          <label id="customStartWrap" hidden>
+            <span>开始日期</span>
+            <input id="customStartDate" type="date" />
+          </label>
+          <label id="customEndWrap" hidden>
+            <span>结束日期</span>
+            <input id="customEndDate" type="date" />
           </label>
         </div>
       </section>

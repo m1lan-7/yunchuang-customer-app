@@ -337,8 +337,12 @@ main {
 
 .date-controls {
   display: grid;
-  grid-template-columns: 132px 150px 110px;
+  grid-template-columns: 132px 150px 110px 140px 140px;
   gap: 10px;
+}
+
+.date-controls label[hidden] {
+  display: none;
 }
 
 label {
@@ -494,7 +498,7 @@ textarea {
   grid-template-columns: 1fr auto;
   gap: 8px 12px;
   align-items: center;
-  min-height: 78px;
+  min-height: 96px;
 }
 
 .resistance-card span {
@@ -523,6 +527,30 @@ textarea {
   background: #edf4fa;
   color: #173e5d;
   font-size: 22px;
+}
+
+.resistance-rank {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.resistance-bar {
+  grid-column: 1 / -1;
+  height: 9px;
+  border-radius: 999px;
+  background: #e7edf3;
+  overflow: hidden;
+}
+
+.resistance-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #205d8f, #1f9d6b);
 }
 
 .resistance-card small {
@@ -795,14 +823,13 @@ textarea {
 
 .insight-layout.level1-insights .owner-chip {
   padding: 8px 6px;
-  grid-template-rows: auto auto minmax(18px, 1fr) auto;
+  grid-template-rows: auto minmax(18px, 1fr) auto;
 }
 
 .insight-layout.level1-insights .owner-chip > strong {
   font-size: 13px;
 }
 
-.insight-layout.level1-insights .owner-chip > small,
 .insight-layout.level1-insights .owner-chip em {
   font-size: 10px;
 }
@@ -990,14 +1017,14 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: linear-gradient(135deg, #ffffff, #f8fbfd);
-  padding: 10px 8px;
+  padding: 12px 8px 9px;
   display: grid;
-  grid-template-rows: auto auto minmax(22px, 1fr) auto;
+  grid-template-rows: auto minmax(26px, 1fr) auto;
   align-content: stretch;
   justify-items: center;
   text-align: center;
-  gap: 3px;
-  border-top: 4px solid #9aa6b2;
+  gap: 6px;
+  border-top: 5px solid var(--owner-color, #9aa6b2);
 }
 
 .owner-chip > strong {
@@ -1007,16 +1034,6 @@ textarea {
   text-overflow: ellipsis;
   font-size: 14px;
   line-height: 1.2;
-}
-
-.owner-chip > small {
-  max-width: 100%;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.15;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 .owner-chip em {
@@ -1073,23 +1090,8 @@ textarea {
 
 .owner-chip.watch {
   border-color: #efc5c6;
+  border-top-color: var(--owner-color, #9aa6b2);
   background: #fff8f7;
-}
-
-.owner-chip[data-module="销冠特工"] {
-  border-top-color: #2e6fba;
-}
-
-.owner-chip[data-module="花开富贵"] {
-  border-top-color: #24725b;
-}
-
-.owner-chip[data-module="乘风破局"] {
-  border-top-color: #a86d1c;
-}
-
-.owner-chip[data-module="KA"] {
-  border-top-color: #8b5fbf;
 }
 
 .inline-filters {
@@ -1433,6 +1435,11 @@ dialog::backdrop {
 
   .toolbar {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .date-controls {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
   }
 
   .search {

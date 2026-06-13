@@ -690,6 +690,11 @@ function inDateScope(item, params) {
   const date = basisDate(item);
   if (!date || scope === "all") return scope === "all" || false;
   if (scope === "month") return date.slice(0, 7) === (params.get("month") || todayText().slice(0, 7));
+  if (scope === "custom") {
+    const start = parseDate(params.get("startDate")) || "0000-00-00";
+    const end = parseDate(params.get("endDate")) || "9999-99-99";
+    return date >= start && date <= end;
+  }
   if (scope === "year") return date.slice(0, 4) === (params.get("year") || todayText().slice(0, 4));
   return true;
 }
@@ -739,15 +744,22 @@ function customerBlockers(item) {
     .filter(Boolean)
     .join(" ");
   const rules = [
-    ["价格", /价格|单价|总价|太贵|贵了|预算|首付|月供|折扣|优惠|便宜|付款|贷|按揭/],
-    ["房源", /房源|楼层|户型|面积|朝向|采光|楼栋|房号|商铺|铺|位置|面宽|进深|107|128|143/],
-    ["决策人", /决策|老婆|老公|夫妻|家人|父母|妈妈|爸爸|儿子|女儿|领导|合伙|股东|商量/],
-    ["距离", /距离|太远|远了|通勤|交通|上班|学校|学区|配套|周边|附近/],
-    ["观望", /观望|考虑|再看|对比|竞品|绿城|保利|万科|滨江|暂时|不急|等等|等一等|以后|后面|有时间/],
+    ["价格", /价格|单价|总价|太贵|贵了|预算|首付|月供|折扣|优惠|便宜|付款|贷款|按揭|房票|拆迁/g, 1],
+    ["房源", /房源|楼层|户型|面积|朝向|采光|楼栋|房号|商铺|铺|位置|面宽|进深|107|128|143/g, 2],
+    ["决策人", /决策|老婆|老公|夫妻|家人|父母|妈妈|爸爸|儿子|女儿|领导|合伙|股东|商量/g, 3],
+    ["距离", /距离|太远|远了|通勤|交通|上班|学校|学区|配套|周边|附近/g, 4],
+    ["观望", /观望|考虑|再看|对比|竞品|绿城|保利|万科|滨江|暂时|不急|等等|等一等|以后|后面|有时间/g, 5],
   ];
-  const blockers = rules.filter(([, pattern]) => pattern.test(text)).map(([label]) => label);
-  if (item.isHouseTicket && !blockers.includes("价格")) blockers.push("价格");
-  return blockers.length ? blockers : ["待补充"];
+  const scores = rules
+    .map(([label, pattern, priority]) => {
+      pattern.lastIndex = 0;
+      const matches = text.match(pattern) || [];
+      const bonus = label === "价格" && item.isHouseTicket ? 2 : 0;
+      return { label, priority, score: matches.length + bonus };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score || a.priority - b.priority);
+  return scores.length ? scores.slice(0, 2).map((item) => item.label) : ["待补充"];
 }
 
 function withRisk(item) {
