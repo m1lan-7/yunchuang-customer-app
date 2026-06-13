@@ -551,7 +551,11 @@ function normalizeLevel2(item) {
     isClosed: rating === "A",
     isEffective: ["A", "C"].includes(rating),
     isHighIntent: rating === "C",
-    isHouseTicket: /房票|拆迁/.test(`${note}${valueText(item.port || item["获客端口"])}`),
+    manualPurchase: valueText(item.manualPurchase || item.purchase),
+    isHouseTicket:
+      item.manualPurchase === "cash" || item.purchase === "cash"
+        ? false
+        : item.manualPurchase === "ticket" || item.purchase === "ticket" || item.isHouseTicket === true || /房票|拆迁/.test(`${note}${valueText(item.port || item["获客端口"])}`),
     note,
     followUp,
   };
@@ -597,7 +601,11 @@ function normalizeLevel1(item) {
     autoTransferMatchedAt: valueText(item.autoTransferMatchedAt),
     visited,
     sold,
-    isHouseTicket: /房票|拆迁/.test(`${note}${port}`),
+    manualPurchase: valueText(item.manualPurchase || item.purchase),
+    isHouseTicket:
+      item.manualPurchase === "cash" || item.purchase === "cash"
+        ? false
+        : item.manualPurchase === "ticket" || item.purchase === "ticket" || item.isHouseTicket === true || /房票|拆迁/.test(`${note}${port}`),
     note,
     followUp,
   };
@@ -659,6 +667,54 @@ function mergeRecords(existing, incoming) {
   });
 
   return { records: [...byId.values()], inserted, updated };
+}
+
+function normalizeManualCustomer(level, body = {}, old = {}) {
+  const isLevel1 = level === "level1";
+  const has = (field) => Object.prototype.hasOwnProperty.call(body, field);
+  const pick = (field, fallback) => (has(field) ? body[field] : fallback);
+  const purchase = pick("purchase", undefined);
+  const isTicket =
+    purchase === "ticket" ? true : purchase === "cash" ? false : has("isHouseTicket") ? body.isHouseTicket === true : old.isHouseTicket === true;
+  const todayArrived = valueText(pick("todayArrived", old.followUp?.todayArrived));
+  const expectedVisitDate = parseDate(has("expectedVisitDate") ? body.expectedVisitDate : pick("nextVisitDate", old.expectedVisitDate));
+  const sold = has("rating") || has("todayArrived") ? body.rating === "A" || body.todayArrived === "已认购" : old.sold === true;
+  const manualVisited =
+    has("rating") || has("todayArrived") ? body.rating === "已转访" || body.todayArrived === "已到访" : old.manualVisited === true;
+  const base = {
+    ...old,
+    recordId: old.recordId || valueText(pick("recordId", "")) || makeId(level),
+    name: valueText(pick("name", old.name)) || "未留名",
+    phone: valueText(pick("phone", old.phone)),
+    owner: valueText(pick("owner", old.owner)) || "未分配",
+    rawModule: valueText(has("rawModule") ? body.rawModule : has("module") ? body.module : old.rawModule || old.module),
+    module: valueText(pick("module", old.module)),
+    port: valueText(pick("port", old.port)) || "未标注",
+    sales: valueText(pick("sales", old.sales)),
+    rating: valueText(pick("rating", old.rating)),
+    region: valueText(pick("region", old.region)),
+    area: valueText(pick("area", old.area)),
+    visitDate: parseDate(pick("visitDate", old.visitDate)),
+    nextVisitDate: expectedVisitDate,
+    expectedVisitDate,
+    acquiredAt: parseDate(pick("acquiredAt", old.acquiredAt)),
+    plannedVisit: parseDate(has("plannedVisit") ? body.plannedVisit : has("expectedVisitDate") ? body.expectedVisitDate : old.plannedVisit),
+    note: valueText(pick("note", old.note)),
+    manualPurchase: purchase || old.manualPurchase,
+    isHouseTicket: isTicket,
+    sold,
+    manualVisited,
+    followUp: {
+      todayArrived,
+      latestSituation: valueText(pick("latestSituation", old.followUp?.latestSituation)),
+      nextVisitDate: expectedVisitDate,
+      updatedAt: valueText(old.followUp?.updatedAt),
+    },
+  };
+  if (body.latestSituation !== undefined || body.todayArrived !== undefined || body.expectedVisitDate !== undefined) {
+    base.followUp.updatedAt = new Date().toISOString();
+  }
+  return isLevel1 ? normalizeLevel1(base) : normalizeLevel2(base);
 }
 
 function countBy(items, key) {
@@ -881,6 +937,7 @@ function buildLevelSummary(level, items) {
       effective: effective.length,
       effectiveRate: percent(effective.length, items.length),
       closed: closed.length,
+      closeRate: percent(closed.length, items.length),
       cLevel: cLevel.length,
       lowIntent: items.filter((item) => item.rating === "D").length,
       houseTicket: items.filter((item) => item.isHouseTicket).length,
@@ -1101,6 +1158,17 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (url.pathname === "/api/customers") {
+      if (req.method === "POST") {
+        const body = await readBody(req);
+        const level = body.level === "level1" ? "level1" : "level2";
+        const store = await loadStore();
+        const item = normalizeManualCustomer(level, body.data || body);
+        store[level] = [item, ...(store[level] || [])];
+        reconcileLevel1Transfers(store);
+        appendAudit(store, "manual-create", { level, recordId: item.recordId, name: item.name, owner: item.owner }, sessionActor(req));
+        const saved = await saveStore(store);
+        return sendJson(res, 200, { ok: true, level, data: withRisk(item), total: store[level].length, updatedAt: saved.updatedAt });
+      }
       const level = url.searchParams.get("level") === "level1" ? "level1" : "level2";
       const store = await loadStore();
       const items = filterRecords(store[level], url.searchParams);
@@ -1161,6 +1229,21 @@ const server = http.createServer(async (req, res) => {
     }
 
     const deleteMatch = url.pathname.match(/^\/api\/customers\/([^/]+)$/);
+    if (deleteMatch && (req.method === "PUT" || req.method === "PATCH")) {
+      const recordId = decodeURIComponent(deleteMatch[1]);
+      const body = await readBody(req);
+      const store = await loadStore();
+      const levelKey = store.level1.some((item) => item.recordId === recordId) ? "level1" : "level2";
+      const list = store[levelKey];
+      const index = list.findIndex((item) => item.recordId === recordId);
+      if (index < 0) return sendJson(res, 404, { ok: false, message: "客户不存在" });
+      const item = normalizeManualCustomer(levelKey, body.data || body, list[index]);
+      list[index] = item;
+      reconcileLevel1Transfers(store);
+      appendAudit(store, "manual-update", { level: levelKey, recordId, name: item.name, owner: item.owner }, sessionActor(req));
+      const saved = await saveStore(store);
+      return sendJson(res, 200, { ok: true, level: levelKey, data: withRisk(item), updatedAt: saved.updatedAt });
+    }
     if (deleteMatch && req.method === "DELETE") {
       const recordId = decodeURIComponent(deleteMatch[1]);
       const store = await loadStore();

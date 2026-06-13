@@ -560,6 +560,87 @@ textarea {
   line-height: 1.4;
 }
 
+.resistance-visual {
+  display: grid;
+  grid-template-columns: minmax(108px, 132px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #d7e3ea;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #ffffff, #f6fafc);
+}
+
+.resistance-pie {
+  width: min(132px, 100%);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  position: relative;
+  color: #173e5d;
+}
+
+.resistance-pie::after {
+  content: "";
+  position: absolute;
+  inset: 24%;
+  border-radius: inherit;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px #dbe5ec;
+}
+
+.resistance-pie strong,
+.resistance-pie span {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+}
+
+.resistance-pie strong {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.resistance-pie span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.resistance-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.resistance-legend span {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.resistance-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.resistance-legend b {
+  color: var(--ink);
+}
+
+.resistance-list {
+  display: grid;
+  gap: 10px;
+}
+
 .due-main,
 .due-main strong,
 .due-main span,
@@ -1006,24 +1087,24 @@ textarea {
 .owner-grid {
   margin-top: 14px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(104px, 1fr));
-  gap: 9px;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px;
   max-height: 260px;
   overflow: auto;
 }
 
 .owner-chip {
-  aspect-ratio: 1;
+  min-height: 126px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: linear-gradient(135deg, #ffffff, #f8fbfd);
-  padding: 12px 8px 9px;
+  padding: 10px 8px 8px;
   display: grid;
-  grid-template-rows: auto minmax(26px, 1fr) auto;
+  grid-template-rows: auto minmax(24px, 1fr) auto;
   align-content: stretch;
   justify-items: center;
   text-align: center;
-  gap: 6px;
+  gap: 5px;
   border-top: 5px solid var(--owner-color, #9aa6b2);
 }
 
@@ -1039,13 +1120,14 @@ textarea {
 .owner-chip em {
   color: var(--muted);
   font-style: normal;
-  font-size: 11px;
+  font-size: 10px;
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
   justify-content: center;
   align-content: start;
   overflow: hidden;
+  max-height: 40px;
 }
 
 .owner-chip em b {
@@ -1083,7 +1165,7 @@ textarea {
 
 .owner-chip dd {
   color: var(--ink);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.15;
   font-weight: 850;
 }
@@ -1155,9 +1237,25 @@ textarea {
   border-bottom: 1px solid var(--line);
 }
 
+.table-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .table-scroll {
   overflow: auto;
   max-height: 58vh;
+}
+
+.table-foot {
+  padding: 12px 16px;
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid var(--line);
+  background: #f8fbfd;
 }
 
 table {
@@ -1187,6 +1285,30 @@ th {
 
 td {
   font-size: 13px;
+}
+
+.cell-input {
+  width: 100%;
+  min-height: 32px;
+  margin: 0 0 6px;
+  border: 1px solid #cfdde8;
+  border-radius: 7px;
+  padding: 6px 8px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+
+.cell-input:focus {
+  outline: 2px solid rgba(47, 128, 237, 0.18);
+  border-color: #6aa0d8;
+}
+
+.cell-textarea {
+  min-height: 70px;
+  resize: vertical;
+  line-height: 1.35;
 }
 
 td strong,
@@ -1421,8 +1543,14 @@ dialog::backdrop {
     flex-direction: column;
   }
 
+  .table-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
   .summary-grid,
-  .insight-layout {
+  .insight-layout,
+  .insight-layout.level1-insights {
     grid-template-columns: 1fr;
   }
 
@@ -1469,10 +1597,36 @@ dialog::backdrop {
   .date-controls,
   .kpi-grid,
   .module-cards,
-  .owner-grid,
   .toolbar {
     width: 100%;
     grid-template-columns: 1fr;
+  }
+
+  .owner-grid {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: 420px;
+  }
+
+  .insight-layout.level1-insights .owner-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .owner-chip {
+    min-height: 112px;
+  }
+
+  .owner-chip em {
+    max-height: 32px;
+  }
+
+  .resistance-visual {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .resistance-legend {
+    width: 100%;
   }
 
   .hero-visual {

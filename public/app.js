@@ -17,6 +17,7 @@ const state = {
   modalCustomers: [],
   activeCustomer: null,
   level1ConfirmedTransfers: [],
+  editMode: false,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -30,6 +31,14 @@ function showToast(message, isError = false) {
 
 function fmt(value, fallback = "未标注") {
   return value === null || value === undefined || value === "" ? fallback : value;
+}
+
+function esc(value = "") {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function fmtTime(value, fallback = "未记录") {
@@ -96,11 +105,38 @@ function kpi(label, value, sub, tone = "", filter = {}) {
   `;
 }
 
+function editInput(field, value, type = "text", placeholder = "") {
+  return `<input class="cell-input" data-field="${field}" type="${type}" value="${esc(value || "")}" placeholder="${esc(placeholder)}" />`;
+}
+
+function editTextarea(field, value, placeholder = "") {
+  return `<textarea class="cell-input cell-textarea" data-field="${field}" placeholder="${esc(placeholder)}">${esc(value || "")}</textarea>`;
+}
+
+function editSelect(field, value, options) {
+  return `
+    <select class="cell-input" data-field="${field}">
+      ${options
+        .map(([optionValue, label]) => `<option value="${esc(optionValue)}" ${String(value || "") === String(optionValue) ? "selected" : ""}>${esc(label)}</option>`)
+        .join("")}
+    </select>
+  `;
+}
+
 const moduleColors = {
   销冠特工: "#2f80ed",
   花开富贵: "#1f9d6b",
   乘风破局: "#f2994a",
   KA: "#8b5cf6",
+};
+
+const blockerColors = {
+  价格: "#205d8f",
+  房源: "#1f9d6b",
+  决策人: "#f2994a",
+  距离: "#8b5cf6",
+  观望: "#b33f42",
+  待补充: "#9aa6b2",
 };
 
 const moduleMetricLabels = {
@@ -250,7 +286,7 @@ function renderKpis() {
       ? [
           kpi("二级客户池", s.total, "当前周期已到访", "accent-blue", {}),
           kpi("有效客户", s.effective, `有效率 ${s.effectiveRate}`, "accent-green", { rating: "C" }),
-          kpi("已成交客户", s.closed, "A级客户", "accent-red", { rating: "A" }),
+          kpi("已成交客户", s.closed, `转化率 ${s.closeRate}`, "accent-red", { rating: "A" }),
           kpi("C级意向客户", s.cLevel, "到访且意向度高", "accent-gold", { rating: "C" }),
           kpi("已锚定到访", s.duePinned, "已填写下次到访", "accent-blue", { dueOnly: true }),
           kpi("风险待跟进", s.riskCount, "未锚定/未复访/房票", "accent-red critical-risk", { risk: true }),
@@ -368,7 +404,6 @@ function renderCCustomers(list = []) {
     (item) => (!state.cGroup || item.module === state.cGroup) && (!state.cOwner || item.owner === state.cOwner),
   );
   const target = filtered.filter((item) => !isClosedCustomer(item));
-  const total = target.length;
   const order = ["价格", "房源", "决策人", "距离", "观望", "待补充"];
   const stats = order
     .map((label) => {
@@ -378,23 +413,53 @@ function renderCCustomers(list = []) {
     .filter((item) => item.count > 0)
     .sort((a, b) => b.count - a.count || order.indexOf(a.label) - order.indexOf(b.label));
   const max = Math.max(...stats.map((item) => item.count), 1);
+  let cursor = 0;
+  const pieTotal = stats.reduce((sum, item) => sum + item.count, 0);
+  const pieStops = stats
+    .map((item) => {
+      const start = pieTotal ? (cursor / pieTotal) * 100 : 0;
+      cursor += item.count;
+      const end = pieTotal ? (cursor / pieTotal) * 100 : 0;
+      return `${blockerColors[item.label] || "#9aa6b2"} ${start}% ${end}%`;
+    })
+    .join(", ");
+  const legend = stats
+    .map(
+      (item) => `
+        <span>
+          <i style="background:${blockerColors[item.label] || "#9aa6b2"}"></i>
+          ${item.label}<b>${item.count}</b>
+        </span>
+      `,
+    )
+    .join("");
+  const cards = stats
+    .map(
+      (item, index) => `
+        <button class="resistance-card" data-blocker="${item.label}">
+          <span>
+            <strong>${item.label}</strong>
+            <em>${pieTotal ? `${((item.count / pieTotal) * 100).toFixed(1)}%` : "0.0%"}</em>
+          </span>
+          <b>${item.count}</b>
+          <i class="resistance-rank">TOP ${index + 1}</i>
+          <i class="resistance-bar"><i style="width:${Math.max(8, Math.round((item.count / max) * 100))}%;background:${blockerColors[item.label] || "#9aa6b2"}"></i></i>
+          <small>${item.customers.slice(0, 3).map((customer) => `${fmt(customer.name)}·${fmt(customer.owner)}`).join("、") || "暂无代表客户"}</small>
+        </button>
+      `,
+    )
+    .join("");
   $("#cCustomerList").innerHTML = stats.length
-    ? stats
-        .map(
-          (item, index) => `
-            <button class="resistance-card" data-blocker="${item.label}">
-              <span>
-                <strong>${item.label}</strong>
-                <em>${total ? `${((item.count / total) * 100).toFixed(1)}%` : "0.0%"}</em>
-              </span>
-              <b>${item.count}</b>
-              <i class="resistance-rank">TOP ${index + 1}</i>
-              <i class="resistance-bar"><i style="width:${Math.max(8, Math.round((item.count / max) * 100))}%"></i></i>
-              <small>${item.customers.slice(0, 3).map((customer) => `${fmt(customer.name)}·${fmt(customer.owner)}`).join("、") || "暂无代表客户"}</small>
-            </button>
-          `,
-        )
-        .join("")
+    ? `
+      <div class="resistance-visual">
+        <div class="resistance-pie" style="background: conic-gradient(${pieStops || "#d9e2ec 0 100%"});">
+          <strong>${pieTotal}</strong>
+          <span>卡点次数</span>
+        </div>
+        <div class="resistance-legend">${legend}</div>
+      </div>
+      <div class="resistance-list">${cards}</div>
+    `
     : `<div class="empty">当前周期暂无可统计抗性客户</div>`;
 }
 
@@ -511,30 +576,30 @@ function renderOptions() {
 function tableColumns() {
   if (state.level === "level2") {
     return [
-      ["客户", (i) => `<strong>${fmt(i.name)}</strong><span>${fmt(i.displayPhone || i.phone, "无电话")}</span>`],
-      ["归属模块", (i) => `<strong>${fmt(i.owner)}</strong><span>${fmt(i.module)}</span>`],
-      ["拓客途径", (i) => `<strong>${fmt(i.port)}</strong>`],
-      ["置业顾问", (i) => `<strong>${fmt(i.sales, "未标注")}</strong>`],
-      ["评级", (i) => `<span class="rating rating-${fmt(i.rating)}">${fmt(i.rating)}</span>`],
-      ["现金/房票", (i) => `<span class="cash-type ${i.isHouseTicket ? "ticket" : ""}">${customerType(i)}</span>`],
-      ["区域/面积", (i) => `<strong>${fmt(i.region, "")}</strong><span>${fmt(i.area, "")}</span>`],
-      ["到访/下访", (i) => `<strong>${fmt(i.visitDate, "未填到访")}</strong><span>${fmt(i.expectedVisitDate, "未锚定下访")}</span>`],
-      ["跟进状态", followCell],
+      ["客户", (i) => state.editMode ? `${editInput("name", i.name, "text", "客户姓名")}${editInput("phone", i.phone || i.displayPhone, "text", "手机号")}` : `<strong>${fmt(i.name)}</strong><span>${fmt(i.displayPhone || i.phone, "无电话")}</span>`],
+      ["归属模块", (i) => state.editMode ? `${editInput("owner", i.owner, "text", "归属人员")}${editSelect("module", i.module, [["销冠特工", "销冠特工"], ["花开富贵", "花开富贵"], ["乘风破局", "乘风破局"], ["KA", "KA"]])}` : `<strong>${fmt(i.owner)}</strong><span>${fmt(i.module)}</span>`],
+      ["拓客途径", (i) => state.editMode ? editInput("port", i.port, "text", "拓客途径") : `<strong>${fmt(i.port)}</strong>`],
+      ["置业顾问", (i) => state.editMode ? editInput("sales", i.sales, "text", "置业顾问") : `<strong>${fmt(i.sales, "未标注")}</strong>`],
+      ["评级", (i) => state.editMode ? editSelect("rating", i.rating, [["A", "A"], ["C", "C"], ["D", "D"], ["", "未标注"]]) : `<span class="rating rating-${fmt(i.rating)}">${fmt(i.rating)}</span>`],
+      ["现金/房票", (i) => state.editMode ? editSelect("purchase", i.isHouseTicket ? "ticket" : "cash", [["cash", "现金"], ["ticket", "房票"]]) : `<span class="cash-type ${i.isHouseTicket ? "ticket" : ""}">${customerType(i)}</span>`],
+      ["区域/面积", (i) => state.editMode ? `${editInput("region", i.region, "text", "区域")}${editInput("area", i.area, "text", "面积")}` : `<strong>${fmt(i.region, "")}</strong><span>${fmt(i.area, "")}</span>`],
+      ["到访/下访", (i) => state.editMode ? `${editInput("visitDate", i.visitDate, "date")}${editInput("expectedVisitDate", i.expectedVisitDate, "date")}` : `<strong>${fmt(i.visitDate, "未填到访")}</strong><span>${fmt(i.expectedVisitDate, "未锚定下访")}</span>`],
+      ["跟进状态", (i) => state.editMode ? `${editSelect("todayArrived", i.followUp?.todayArrived || "", [["", "待跟进"], ["确认到访", "确认到访"], ["已到访", "已到访"], ["未到访", "未到访"], ["已认购", "已认购"]])}${editInput("latestSituation", i.followUp?.latestSituation, "text", "最新跟进")}` : followCell(i)],
       ["客户卡点", renderBlockers],
-      ["客户情况", (i) => `<span class="note-text">${fmt(i.note, "暂无客户情况")}</span>`],
+      ["客户情况", (i) => state.editMode ? editTextarea("note", i.note, "客户情况") : `<span class="note-text">${fmt(i.note, "暂无客户情况")}</span>`],
       ["操作", actionCell],
     ];
   }
   return [
-    ["客户", (i) => `<strong>${fmt(i.name)}</strong><span>${fmt(i.displayPhone || i.phone, "无电话")}</span>`],
-    ["归属人员/小组", (i) => `<strong>${fmt(i.owner)}</strong><span>${fmt(i.module)}</span>`],
-    ["拓客途径", (i) => `<strong>${fmt(i.port)}</strong><span>${fmt(i.rawModule, "")}</span>`],
-    ["获客日期", (i) => `<strong>${fmt(i.acquiredAt, "未填获客")}</strong>`],
-    ["预计到访", (i) => `<strong>${fmt(i.expectedVisitDate, "未锚定到访")}</strong><span>首次 ${fmt(i.plannedVisit, "未记录")}</span>`],
-    ["转访状态", (i) => `<span class="rating level1-rating">${fmt(i.rating)}</span>`],
-    ["跟进结果", followCell],
+    ["客户", (i) => state.editMode ? `${editInput("name", i.name, "text", "客户姓名")}${editInput("phone", i.phone || i.displayPhone, "text", "手机号")}` : `<strong>${fmt(i.name)}</strong><span>${fmt(i.displayPhone || i.phone, "无电话")}</span>`],
+    ["归属人员/小组", (i) => state.editMode ? `${editInput("owner", i.owner, "text", "归属人员")}${editSelect("module", i.module, [["销冠特工", "销冠特工"], ["花开富贵", "花开富贵"], ["乘风破局", "乘风破局"], ["KA", "KA"]])}` : `<strong>${fmt(i.owner)}</strong><span>${fmt(i.module)}</span>`],
+    ["拓客途径", (i) => state.editMode ? `${editInput("port", i.port, "text", "拓客途径")}${editInput("rawModule", i.rawModule, "text", "原模块")}` : `<strong>${fmt(i.port)}</strong><span>${fmt(i.rawModule, "")}</span>`],
+    ["获客日期", (i) => state.editMode ? editInput("acquiredAt", i.acquiredAt, "date") : `<strong>${fmt(i.acquiredAt, "未填获客")}</strong>`],
+    ["预计到访", (i) => state.editMode ? editInput("expectedVisitDate", i.expectedVisitDate, "date") : `<strong>${fmt(i.expectedVisitDate, "未锚定到访")}</strong><span>首次 ${fmt(i.plannedVisit, "未记录")}</span>`],
+    ["转访状态", (i) => state.editMode ? editSelect("rating", i.rating, [["未转访", "未转访"], ["确认到访", "确认到访"], ["未到访", "未到访"], ["已转访", "已转访"], ["A", "A"]]) : `<span class="rating level1-rating">${fmt(i.rating)}</span>`],
+    ["跟进结果", (i) => state.editMode ? `${editSelect("todayArrived", i.followUp?.todayArrived || "", [["", "待跟进"], ["确认到访", "确认到访"], ["已到访", "已到访"], ["未到访", "未到访"], ["已认购", "已认购"]])}${editInput("latestSituation", i.followUp?.latestSituation, "text", "最新跟进")}` : followCell(i)],
     ["客户卡点", renderBlockers],
-    ["客户情况", (i) => `<span class="note-text">${fmt(i.note, "暂无客户情况")}</span>`],
+    ["客户情况", (i) => state.editMode ? editTextarea("note", i.note, "客户情况") : `<span class="note-text">${fmt(i.note, "暂无客户情况")}</span>`],
     ["操作", actionCell],
   ];
 }
@@ -546,6 +611,14 @@ function followCell(item) {
 }
 
 function actionCell(item) {
+  if (state.editMode) {
+    return `
+      <div class="row-actions">
+        <button class="row-button" data-action="save-row" data-id="${item.recordId}">保存</button>
+        <button class="row-button danger" data-action="delete" data-id="${item.recordId}">删除</button>
+      </div>
+    `;
+  }
   const followAction = isClosedCustomer(item) || isLevel1Converted(item)
     ? `<span class="settled-label">无需跟进</span>`
     : `<button class="row-button" data-action="follow" data-id="${item.recordId}">跟进</button>`;
@@ -562,9 +635,10 @@ function renderTable() {
   $("#tableTitle").textContent = state.level === "level2" ? "二级客户明细" : "一级转访明细";
   $("#tableHead").innerHTML = `<tr>${columns.map(([name]) => `<th>${name}</th>`).join("")}</tr>`;
   $("#tableCount").textContent = `共 ${state.customers.length} 条`;
+  $("#toggleEditBtn").textContent = state.editMode ? "完成编辑" : "编辑表格";
   $("#customerTable").innerHTML = state.customers.length
     ? state.customers
-        .map((item) => `<tr>${columns.map(([, render]) => `<td>${render(item)}</td>`).join("")}</tr>`)
+        .map((item) => `<tr data-id="${item.recordId}">${columns.map(([, render]) => `<td>${render(item)}</td>`).join("")}</tr>`)
         .join("")
     : `<tr><td colspan="${columns.length}" class="empty">当前筛选条件下暂无客户</td></tr>`;
 }
@@ -750,6 +824,50 @@ async function saveFollow() {
   await refreshAll();
 }
 
+function collectRowData(row) {
+  const data = {};
+  row.querySelectorAll("[data-field]").forEach((field) => {
+    data[field.dataset.field] = field.value;
+  });
+  return data;
+}
+
+async function saveTableRow(recordId, row) {
+  const data = collectRowData(row);
+  await getJson(`/api/customers/${encodeURIComponent(recordId)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ data }),
+  });
+  showToast("客户信息已保存");
+  await refreshAll();
+}
+
+async function addManualCustomer() {
+  const name = window.prompt("请输入客户姓名");
+  if (name === null) return;
+  const phone = window.prompt("请输入客户手机号（可不填）") || "";
+  const data = {
+    name: name.trim() || "未留名",
+    phone: phone.trim(),
+    owner: $("#ownerFilter").value || "",
+    module: $("#moduleFilter").value || "",
+    rating: state.level === "level1" ? "未转访" : "C",
+    port: "手动录入",
+    visitDate: state.level === "level2" ? new Date().toISOString().slice(0, 10) : "",
+    acquiredAt: state.level === "level1" ? new Date().toISOString().slice(0, 10) : "",
+  };
+  await getJson("/api/customers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ level: state.level, data }),
+  });
+  state.editMode = true;
+  showToast("已新增客户，可在表格中继续补全字段");
+  resetFilters();
+  await refreshAll();
+}
+
 async function deleteCustomer(customer) {
   const ok = window.confirm(`确认删除「${customer.name}」吗？\n仅删除本机台账记录，不会修改飞书原表。`);
   if (!ok) return;
@@ -780,6 +898,11 @@ async function importRows(level) {
 
 function bindEvents() {
   $("#refreshBtn").addEventListener("click", refreshAll);
+  $("#toggleEditBtn").addEventListener("click", () => {
+    state.editMode = !state.editMode;
+    renderTable();
+  });
+  $("#addCustomerBtn").addEventListener("click", () => addManualCustomer().catch((error) => showToast(error.message, true)));
   $("#importLevelSwitch").addEventListener("click", (event) => {
     const button = event.target.closest("button[data-import-level]");
     if (!button) return;
@@ -900,6 +1023,11 @@ function bindEvents() {
     if (!customer) return;
     if (button.dataset.action === "delete") {
       deleteCustomer(customer).catch((error) => showToast(error.message, true));
+      return;
+    }
+    if (button.dataset.action === "save-row") {
+      const row = button.closest("tr");
+      saveTableRow(customer.recordId, row).catch((error) => showToast(error.message, true));
       return;
     }
     openFollow(customer);

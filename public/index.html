@@ -200,13 +200,19 @@
             <h2 id="tableTitle">二级客户明细</h2>
             <span id="tableCount">读取中</span>
           </div>
-          <p>点击 KPI、小组、人员或C级名单可直接下钻到客户明细。</p>
+          <div class="table-actions">
+            <p>点击 KPI、小组、人员或名单可直接下钻到客户明细。</p>
+            <button id="toggleEditBtn" class="text-button" type="button">编辑表格</button>
+          </div>
         </div>
         <div class="table-scroll">
           <table>
             <thead id="tableHead"></thead>
             <tbody id="customerTable"></tbody>
           </table>
+        </div>
+        <div class="table-foot">
+          <button id="addCustomerBtn" class="primary-button" type="button">手动录入客户</button>
         </div>
       </section>
     </main>
