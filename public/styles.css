@@ -562,9 +562,10 @@ textarea {
 
 .resistance-visual {
   display: grid;
-  grid-template-columns: minmax(120px, 158px) minmax(0, 1fr);
+  grid-template-columns: 172px minmax(0, 1fr);
   gap: 18px;
   align-items: center;
+  min-height: 190px;
   padding: 14px;
   border: 1px solid #cfdfe8;
   border-radius: 8px;
@@ -573,12 +574,13 @@ textarea {
 }
 
 .resistance-pie {
-  width: min(158px, 100%);
-  aspect-ratio: 1;
+  width: 158px;
+  height: 158px;
   border-radius: 999px;
   display: grid;
   place-items: center;
   position: relative;
+  justify-self: center;
   color: #173e5d;
   box-shadow: 0 16px 34px rgba(23, 62, 93, 0.16);
 }
@@ -614,8 +616,9 @@ textarea {
 
 .resistance-legend {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(130px, 1fr));
   gap: 10px;
+  align-self: center;
 }
 
 .resistance-legend span {
@@ -833,7 +836,7 @@ textarea {
 }
 
 .target-donut strong,
-.target-donut span {
+.target-donut-value {
   position: relative;
   z-index: 1;
 }
@@ -843,11 +846,11 @@ textarea {
   line-height: 1;
 }
 
-.target-donut span {
-  margin-top: 20px;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 10px;
-  position: absolute;
+.target-donut-value {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1;
 }
 
 .target-donut-card b {
@@ -1119,8 +1122,8 @@ textarea {
 
 .module-bars {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .module-card {
@@ -1175,7 +1178,7 @@ textarea {
   width: min(100%, 34px);
   min-height: 14px;
   border-radius: 8px 8px 3px 3px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--module-color) 82%, #ffffff), var(--module-color));
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.26), rgba(0, 0, 0, 0.04)), var(--module-color);
 }
 
 .module-pie-wrap {
@@ -1280,8 +1283,8 @@ textarea {
   justify-content: center;
   gap: 4px;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--slice-color) 32%, #ffffff);
-  background: color-mix(in srgb, var(--slice-color) 18%, #ffffff);
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.94);
   color: #173e5d;
   box-shadow: 0 8px 18px rgba(23, 62, 93, 0.12);
   font-size: 12px;
@@ -1840,9 +1843,12 @@ dialog::backdrop {
 
   .kpi-grid,
   .workflow-grid,
-  .module-cards,
-  .module-bars {
+  .module-cards {
     grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+
+  .module-bars {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .toolbar {
@@ -1884,6 +1890,10 @@ dialog::backdrop {
   .toolbar {
     width: 100%;
     grid-template-columns: 1fr;
+  }
+
+  .module-bars {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .owner-grid {
@@ -1934,8 +1944,14 @@ dialog::backdrop {
     justify-items: center;
   }
 
+  .resistance-pie {
+    width: 150px;
+    height: 150px;
+  }
+
   .resistance-legend {
     width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .hero-visual {

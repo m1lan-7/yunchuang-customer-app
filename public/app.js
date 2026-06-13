@@ -368,8 +368,8 @@ function renderTargets() {
       <div class="target-donut-card">
         <div class="target-donut" style="--target-rate:${rate}%">
           <strong>${rate}%</strong>
-          <span>${item.value}/${item.target || "未填"}</span>
         </div>
+        <span class="target-donut-value">${item.value}/${item.target || "未填"}</span>
         <b>${title}</b>
       </div>
     `;
@@ -891,7 +891,7 @@ function openFollow(customer) {
   $("#firstVisitLabel").textContent = isLevel1 ? "第一次客户预计到访时间" : "第一次客户到访时间";
   $("#firstVisitDate").textContent = fmt(customer.visitDate || customer.plannedVisit, "未记录");
   $("#lastFollowTime").textContent = fmtTime(customer.followUp?.updatedAt);
-  $("#lastFollowNote").textContent = fmt(customer.followUp?.latestSituation, "暂无上次跟进描摹");
+  $("#lastFollowNote").textContent = fmt(customer.note, "暂无客户情况");
   $("#acquiredDateLabel").textContent = isLevel1 ? "获客日期" : "到访日期";
   $("#acquiredDate").textContent = fmt(isLevel1 ? customer.acquiredAt : customer.visitDate, "未记录");
   $("#followResultLabel").textContent = isLevel1 ? "转访确认/今日结果" : "到访确认/今日结果";
