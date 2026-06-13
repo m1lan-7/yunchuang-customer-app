@@ -71,6 +71,31 @@
           <div id="dueTodayList" class="due-list"></div>
         </div>
 
+        <div class="panel target-panel">
+          <div class="panel-head compact">
+            <div>
+              <h2>指标与达成情况</h2>
+              <span id="targetMeta">按当前统计周期保存</span>
+            </div>
+            <button id="saveTargetsBtn" class="primary-button target-save" type="button">保存指标</button>
+          </div>
+          <div class="target-inputs">
+            <label>
+              <span>到访指标</span>
+              <input id="targetVisits" type="number" min="0" inputmode="numeric" />
+            </label>
+            <label>
+              <span>有效到访指标</span>
+              <input id="targetEffective" type="number" min="0" inputmode="numeric" />
+            </label>
+            <label>
+              <span>成交套数指标</span>
+              <input id="targetClosed" type="number" min="0" inputmode="numeric" />
+            </label>
+          </div>
+          <div id="targetProgress" class="target-progress"></div>
+        </div>
+
         <div class="panel import-panel">
           <div class="panel-head compact">
             <div>
@@ -202,6 +227,7 @@
           </div>
           <div class="table-actions">
             <p>点击 KPI、小组、人员或名单可直接下钻到客户明细。</p>
+            <button id="dedupeBtn" class="text-button" type="button">一键剔重</button>
             <button id="toggleEditBtn" class="text-button" type="button">编辑表格</button>
           </div>
         </div>

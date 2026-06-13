@@ -18,6 +18,7 @@ const state = {
   activeCustomer: null,
   level1ConfirmedTransfers: [],
   editMode: false,
+  targets: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -163,6 +164,11 @@ function customerType(item) {
   return item.isHouseTicket ? "房票" : "现金";
 }
 
+function targetNumber(value) {
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? Math.round(num) : 0;
+}
+
 function renderBlockers(item) {
   const blockers = item.blockers?.length ? item.blockers : ["待补充"];
   return `<span class="blocker-tags">${blockers.map((label) => `<b class="blocker-tag">${label}</b>`).join("")}</span>`;
@@ -302,6 +308,32 @@ function renderKpis() {
         ].join("");
 }
 
+function renderTargets() {
+  const targets = state.targets || {};
+  const achieved = targets.achieved || {};
+  const items = [
+    { key: "visits", label: "到访", target: targetNumber(targets.visits), value: targetNumber(achieved.visits) },
+    { key: "effective", label: "有效", target: targetNumber(targets.effective), value: targetNumber(achieved.effective) },
+    { key: "closed", label: "成交", target: targetNumber(targets.closed), value: targetNumber(achieved.closed) },
+  ];
+  $("#targetVisits").value = targets.visits || "";
+  $("#targetEffective").value = targets.effective || "";
+  $("#targetClosed").value = targets.closed || "";
+  $("#targetMeta").textContent = targets.updatedAt ? `已保存｜${fmtTime(targets.updatedAt)}` : "按当前统计周期保存";
+  $("#targetProgress").innerHTML = items
+    .map((item) => {
+      const rate = item.target ? Math.min(100, Math.round((item.value / item.target) * 100)) : 0;
+      return `
+        <div class="target-item">
+          <strong>${item.label}</strong>
+          <i class="target-track"><i style="--progress:${rate}%"></i></i>
+          <span>${item.value}/${item.target || "未填"}</span>
+        </div>
+      `;
+    })
+    .join("");
+}
+
 function renderModuleCards(items = []) {
   const labels = currentModuleMetricLabels();
   if (!labels[state.moduleMetric]) state.moduleMetric = Object.keys(labels)[0];
@@ -349,6 +381,16 @@ function renderModuleCards(items = []) {
       `;
     })
     .join("");
+  const sliceLabels = items
+    .map((item, index) => {
+      const value = metricValue(item);
+      return `
+        <span class="slice-label-${index}" style="--slice-color:${moduleColors[item.name] || "#9aa6b2"}">
+          <i></i>${item.name === "KA" ? "KA" : item.name.slice(0, 1)} ${value}
+        </span>
+      `;
+    })
+    .join("");
   $("#moduleChart").innerHTML = `
     <div class="module-bars">${bars}</div>
     <div class="module-pie-wrap">
@@ -360,9 +402,12 @@ function renderModuleCards(items = []) {
           )
           .join("")}
       </div>
-      <div class="module-pie" style="background: conic-gradient(${pieStops || "#d9e2ec 0 100%"});">
-        <strong>${total}</strong>
-        <span>${labels[state.moduleMetric]}</span>
+      <div class="module-pie-stage">
+        <div class="module-pie" style="background: conic-gradient(${pieStops || "#d9e2ec 0 100%"});">
+          <strong>${total}</strong>
+          <span>${labels[state.moduleMetric]}</span>
+        </div>
+        <div class="module-slice-labels">${sliceLabels}</div>
       </div>
       <div class="module-legend">${legend}</div>
     </div>
@@ -452,10 +497,7 @@ function renderCCustomers(list = []) {
   $("#cCustomerList").innerHTML = stats.length
     ? `
       <div class="resistance-visual">
-        <div class="resistance-pie" style="background: conic-gradient(${pieStops || "#d9e2ec 0 100%"});">
-          <strong>${pieTotal}</strong>
-          <span>卡点次数</span>
-        </div>
+        <div class="resistance-pie" aria-label="客户抗性占比" style="background: conic-gradient(${pieStops || "#d9e2ec 0 100%"});"></div>
         <div class="resistance-legend">${legend}</div>
       </div>
       <div class="resistance-list">${cards}</div>
@@ -526,7 +568,7 @@ function renderDueCustomers() {
           (item) => `
             <button class="due-item ${isVisitConfirmed(item) ? "confirmed" : ""} ${item.level === "一级" ? "level1-due" : ""}" data-id="${item.recordId}">
               <span class="due-main">
-                <strong>${item.expectedVisitDate}｜${item.level}｜${fmt(item.name)} · ${fmt(item.owner)}</strong>
+                <strong>${item.expectedVisitDate}｜${item.level === "二级" ? customerType(item) : item.level}｜${fmt(item.name)} · ${fmt(item.owner)}</strong>
                 <span>${fmt(item.module)}｜${fmt(item.port)}｜${fmt(item.rating)}｜${fmt(item.followUp?.todayArrived, "待确认")}</span>
               </span>
               <span class="due-note">${fmt(item.note || item.followUp?.latestSituation, "暂无客户情况")}</span>
@@ -724,6 +766,7 @@ async function loadSummary() {
   state.summary = data.summary;
   state.options = data.options;
   state.dueMeta = data.dueMeta;
+  state.targets = data.targets;
   if (state.level === "level1") {
     const reconciled = await clientReconcileLevel1Transfers();
     if (reconciled) {
@@ -731,12 +774,14 @@ async function loadSummary() {
       state.summary = refreshed.summary;
       state.options = refreshed.options;
       state.dueMeta = refreshed.dueMeta;
+      state.targets = refreshed.targets;
     }
     await loadLevel1ConfirmedTransfers();
   }
   $("#sourceStatus").textContent = `本机台账｜${new Date(data.updatedAt).toLocaleString("zh-CN", { hour12: false })}`;
   renderDueCustomers();
   renderConfirmedTransfers();
+  renderTargets();
   renderOptions();
   renderKpis();
   renderCharts();
@@ -868,6 +913,33 @@ async function addManualCustomer() {
   await refreshAll();
 }
 
+async function saveTargets() {
+  const payload = {
+    visits: targetNumber($("#targetVisits").value),
+    effective: targetNumber($("#targetEffective").value),
+    closed: targetNumber($("#targetClosed").value),
+  };
+  await getJson(`/api/targets?${scopeParams().toString()}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  showToast("指标已保存");
+  await loadSummary();
+}
+
+async function dedupeCustomers() {
+  const ok = window.confirm("确认一键剔除重复客户吗？\n规则：同一台账内，手机号和归属渠道姓名都相同，则保留第一条，删除后续重复记录。");
+  if (!ok) return;
+  const data = await getJson("/api/customers/dedupe", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ level: state.level }),
+  });
+  showToast(data.removed ? `已剔除 ${data.removed} 条重复客户` : "未发现重复客户");
+  await refreshAll();
+}
+
 async function deleteCustomer(customer) {
   const ok = window.confirm(`确认删除「${customer.name}」吗？\n仅删除本机台账记录，不会修改飞书原表。`);
   if (!ok) return;
@@ -903,6 +975,8 @@ function bindEvents() {
     renderTable();
   });
   $("#addCustomerBtn").addEventListener("click", () => addManualCustomer().catch((error) => showToast(error.message, true)));
+  $("#dedupeBtn").addEventListener("click", () => dedupeCustomers().catch((error) => showToast(error.message, true)));
+  $("#saveTargetsBtn").addEventListener("click", () => saveTargets().catch((error) => showToast(error.message, true)));
   $("#importLevelSwitch").addEventListener("click", (event) => {
     const button = event.target.closest("button[data-import-level]");
     if (!button) return;

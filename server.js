@@ -388,7 +388,16 @@ function reconcileLevel1Transfers(store) {
 }
 
 function emptyStore() {
-  return { version: 3, updatedAt: new Date().toISOString(), source: DATABASE_URL ? "postgres-manual" : "local-manual", level1: [], level2: [], importBatches: [], auditLogs: [] };
+  return {
+    version: 3,
+    updatedAt: new Date().toISOString(),
+    source: DATABASE_URL ? "postgres-manual" : "local-manual",
+    level1: [],
+    level2: [],
+    importBatches: [],
+    auditLogs: [],
+    targets: {},
+  };
 }
 
 function normalizeStore(parsed = {}) {
@@ -400,6 +409,7 @@ function normalizeStore(parsed = {}) {
     level2: (parsed.level2 || []).map(normalizeLevel2),
     importBatches: parsed.importBatches || [],
     auditLogs: parsed.auditLogs || [],
+    targets: parsed.targets || {},
   });
 }
 
@@ -467,6 +477,7 @@ async function saveStore(store) {
     level2: normalized.level2 || [],
     importBatches: normalized.importBatches || [],
     auditLogs: normalized.auditLogs || [],
+    targets: normalized.targets || {},
   };
   const pool = await ensurePg();
   if (pool) {
@@ -735,6 +746,74 @@ function topEntries(map, limit = 10) {
 function percent(numerator, denominator) {
   if (!denominator) return "0.0%";
   return `${((numerator / denominator) * 100).toFixed(1)}%`;
+}
+
+function numberValue(value) {
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? Math.round(num) : 0;
+}
+
+function targetScopeKey(params) {
+  const scope = params.get("dateScope") || "month";
+  if (scope === "month") return `month:${params.get("month") || todayText().slice(0, 7)}`;
+  if (scope === "year") return `year:${params.get("year") || todayText().slice(0, 4)}`;
+  if (scope === "custom") {
+    const start = parseDate(params.get("startDate")) || "0000-00-00";
+    const end = parseDate(params.get("endDate")) || "9999-99-99";
+    return `custom:${start}:${end}`;
+  }
+  return "all";
+}
+
+function normalizeTargets(value = {}) {
+  return {
+    visits: numberValue(value.visits),
+    effective: numberValue(value.effective),
+    closed: numberValue(value.closed),
+    updatedAt: valueText(value.updatedAt),
+  };
+}
+
+function buildTargetStatus(store, params, level2Summary) {
+  const key = targetScopeKey(params);
+  const saved = normalizeTargets(store.targets?.[key] || {});
+  const metrics = {
+    visits: level2Summary.total || 0,
+    effective: level2Summary.effective || 0,
+    closed: level2Summary.closed || 0,
+  };
+  return {
+    key,
+    ...saved,
+    achieved: metrics,
+    rates: {
+      visits: percent(metrics.visits, saved.visits),
+      effective: percent(metrics.effective, saved.effective),
+      closed: percent(metrics.closed, saved.closed),
+    },
+  };
+}
+
+function dedupeByPhoneAndOwner(records = []) {
+  const seen = new Set();
+  const kept = [];
+  const removed = [];
+  for (const item of records) {
+    const phoneKey = valueText(item.phone || item.displayPhone).replace(/\D/g, "") || valueText(item.phone || item.displayPhone);
+    const ownerKey = normalizeStaff(item.owner);
+    if (!phoneKey || !ownerKey) {
+      kept.push(item);
+      continue;
+    }
+    const key = `${phoneKey}|${ownerKey}`;
+    if (seen.has(key)) {
+      removed.push(item);
+    } else {
+      seen.add(key);
+      kept.push(item);
+    }
+  }
+  return { kept, removed };
 }
 
 function basisDate(item) {
@@ -1131,6 +1210,8 @@ const server = http.createServer(async (req, res) => {
         .map(withRisk)
         .filter((item) => isDueInRange(item, dueMeta))
         .sort((a, b) => a.expectedVisitDate.localeCompare(b.expectedVisitDate) || a.owner.localeCompare(b.owner, "zh-CN"));
+      const level1Summary = buildLevelSummary("level1", level1);
+      const level2Summary = buildLevelSummary("level2", level2);
 
       return sendJson(res, 200, {
         ok: true,
@@ -1142,9 +1223,10 @@ const server = http.createServer(async (req, res) => {
           year: url.searchParams.get("year") || todayText().slice(0, 4),
         },
         dueMeta,
+        targets: buildTargetStatus(store, url.searchParams, level2Summary),
         summary: {
-          level1: buildLevelSummary("level1", level1),
-          level2: buildLevelSummary("level2", level2),
+          level1: level1Summary,
+          level2: level2Summary,
           level1PendingTransferCustomers,
           level1ConfirmedTransferCustomers,
           dueCustomers,
@@ -1154,6 +1236,50 @@ const server = http.createServer(async (req, res) => {
           level1: optionsFor(level1All),
           level2: optionsFor(level2All),
         },
+      });
+    }
+
+    if (url.pathname === "/api/targets" && req.method === "POST") {
+      const body = await readBody(req);
+      const store = await loadStore();
+      const key = targetScopeKey(url.searchParams);
+      store.targets = {
+        ...(store.targets || {}),
+        [key]: {
+          ...normalizeTargets(body),
+          updatedAt: new Date().toISOString(),
+        },
+      };
+      appendAudit(store, "targets-update", { key, targets: store.targets[key] }, sessionActor(req));
+      const saved = await saveStore(store);
+      return sendJson(res, 200, { ok: true, key, targets: store.targets[key], updatedAt: saved.updatedAt });
+    }
+
+    if (url.pathname === "/api/customers/dedupe" && req.method === "POST") {
+      const body = await readBody(req);
+      const level = body.level === "level1" ? "level1" : "level2";
+      const store = await loadStore();
+      const result = dedupeByPhoneAndOwner(store[level] || []);
+      store[level] = result.kept.map(level === "level1" ? normalizeLevel1 : normalizeLevel2);
+      reconcileLevel1Transfers(store);
+      appendAudit(
+        store,
+        "dedupe",
+        {
+          level,
+          removed: result.removed.length,
+          rule: "phone+owner",
+          samples: result.removed.slice(0, 10).map((item) => ({ recordId: item.recordId, name: item.name, owner: item.owner, phone: item.displayPhone || item.phone })),
+        },
+        sessionActor(req),
+      );
+      const saved = await saveStore(store);
+      return sendJson(res, 200, {
+        ok: true,
+        level,
+        removed: result.removed.length,
+        total: store[level].length,
+        updatedAt: saved.updatedAt,
       });
     }
 
