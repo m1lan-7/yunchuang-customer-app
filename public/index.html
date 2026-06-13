@@ -75,23 +75,9 @@
           <div class="panel-head compact">
             <div>
               <h2>指标与达成情况</h2>
-              <span id="targetMeta">按当前统计周期保存</span>
+              <span id="targetMeta">固定显示本月</span>
             </div>
-            <button id="saveTargetsBtn" class="primary-button target-save" type="button">保存指标</button>
-          </div>
-          <div class="target-inputs">
-            <label>
-              <span>到访指标</span>
-              <input id="targetVisits" type="number" min="0" inputmode="numeric" />
-            </label>
-            <label>
-              <span>有效到访指标</span>
-              <input id="targetEffective" type="number" min="0" inputmode="numeric" />
-            </label>
-            <label>
-              <span>成交套数指标</span>
-              <input id="targetClosed" type="number" min="0" inputmode="numeric" />
-            </label>
+            <button id="editTargetsBtn" class="primary-button target-save" type="button">编辑指标</button>
           </div>
           <div id="targetProgress" class="target-progress"></div>
         </div>
@@ -266,6 +252,10 @@
             <strong id="acquiredDate">未记录</strong>
           </div>
         </div>
+        <div class="follow-last-note">
+          <span>上次跟进描摹</span>
+          <strong id="lastFollowNote">暂无上次跟进描摹</strong>
+        </div>
         <label>
           <span id="followResultLabel">到访确认/今日结果</span>
           <select id="todayArrived">
@@ -287,6 +277,36 @@
         <div class="dialog-actions">
           <button value="cancel" class="text-button">取消</button>
           <button id="saveFollowBtn" value="default" class="primary-button">保存跟进</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="targetDialog">
+      <form method="dialog" class="target-dialog-card">
+        <div class="dialog-head">
+          <div>
+            <h2>编辑本月指标</h2>
+            <span id="targetDialogMeta">到访、有效到访、成交套数</span>
+          </div>
+          <button class="icon-button subtle" value="cancel" aria-label="关闭">×</button>
+        </div>
+        <div class="target-inputs dialog-target-inputs">
+          <label>
+            <span>到访指标</span>
+            <input id="targetVisits" type="number" min="0" inputmode="numeric" />
+          </label>
+          <label>
+            <span>有效到访指标</span>
+            <input id="targetEffective" type="number" min="0" inputmode="numeric" />
+          </label>
+          <label>
+            <span>成交套数指标</span>
+            <input id="targetClosed" type="number" min="0" inputmode="numeric" />
+          </label>
+        </div>
+        <div class="dialog-actions">
+          <button value="cancel" class="text-button">取消</button>
+          <button id="saveTargetsBtn" value="default" class="primary-button">保存指标</button>
         </div>
       </form>
     </dialog>

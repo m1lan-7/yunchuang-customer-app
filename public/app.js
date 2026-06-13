@@ -131,6 +131,20 @@ const moduleColors = {
   KA: "#8b5cf6",
 };
 
+const moduleDisplayNames = {
+  销冠特工: "线上-销冠特工队",
+  花开富贵: "线上-花开富贵队",
+  乘风破局: "线下-乘风破局队",
+  KA: "KA组",
+};
+
+const moduleShortNames = {
+  销冠特工: "销冠",
+  花开富贵: "花开",
+  乘风破局: "乘风",
+  KA: "KA",
+};
+
 const blockerColors = {
   价格: "#205d8f",
   房源: "#1f9d6b",
@@ -158,6 +172,21 @@ function metricValue(item) {
 
 function currentModuleMetricLabels() {
   return state.level === "level1" ? level1ModuleMetricLabels : moduleMetricLabels;
+}
+
+function moduleLabel(name) {
+  return moduleDisplayNames[name] || name;
+}
+
+function moduleShortLabel(name) {
+  return moduleShortNames[name] || name;
+}
+
+function moduleLeader(name) {
+  const owners = (state.summary?.ownerInsights || [])
+    .filter((item) => item.module === name)
+    .sort((a, b) => (b.value || 0) - (a.value || 0) || a.name.localeCompare(b.name, "zh-CN"));
+  return owners[0]?.name || "待填写";
 }
 
 function customerType(item) {
@@ -319,8 +348,9 @@ function renderTargets() {
   $("#targetVisits").value = targets.visits || "";
   $("#targetEffective").value = targets.effective || "";
   $("#targetClosed").value = targets.closed || "";
-  $("#targetMeta").textContent = targets.updatedAt ? `已保存｜${fmtTime(targets.updatedAt)}` : "按当前统计周期保存";
-  $("#targetProgress").innerHTML = items
+  $("#targetMeta").textContent = targets.updatedAt ? `本月指标｜已保存 ${fmtTime(targets.updatedAt)}` : "固定显示本月";
+  $("#targetDialogMeta").textContent = `${targets.month || state.month || "本月"}｜到访、有效到访、成交套数`;
+  const bars = items
     .map((item) => {
       const rate = item.target ? Math.min(100, Math.round((item.value / item.target) * 100)) : 0;
       return `
@@ -332,6 +362,25 @@ function renderTargets() {
       `;
     })
     .join("");
+  const donut = (item, title) => {
+    const rate = item.target ? Math.min(100, Math.round((item.value / item.target) * 100)) : 0;
+    return `
+      <div class="target-donut-card">
+        <div class="target-donut" style="--target-rate:${rate}%">
+          <strong>${rate}%</strong>
+          <span>${item.value}/${item.target || "未填"}</span>
+        </div>
+        <b>${title}</b>
+      </div>
+    `;
+  };
+  $("#targetProgress").innerHTML = `
+    <div class="target-bars">${bars}</div>
+    <div class="target-donuts">
+      ${donut(items[0], "总到访达成")}
+      ${donut(items[2], "成交达成")}
+    </div>
+  `;
 }
 
 function renderModuleCards(items = []) {
@@ -356,8 +405,9 @@ function renderModuleCards(items = []) {
       return `
         <button class="module-card" data-module="${item.name}">
           <div class="module-top">
-            <strong>${item.name}</strong>
-            <span>${item.share}</span>
+            <strong>${moduleLabel(item.name)}</strong>
+            <span>组长：${moduleLeader(item.name)}</span>
+            <em>${item.share}</em>
           </div>
           <div class="module-visual">
             <i style="height:${height}px; --module-color:${moduleColors[item.name] || "#2e6fba"}"></i>
@@ -376,7 +426,7 @@ function renderModuleCards(items = []) {
       return `
         <span>
           <i style="background:${moduleColors[item.name] || "#9aa6b2"}"></i>
-          ${item.name}<b>${value}</b>
+          ${moduleShortLabel(item.name)}<b>${value}</b>
         </span>
       `;
     })
@@ -386,7 +436,7 @@ function renderModuleCards(items = []) {
       const value = metricValue(item);
       return `
         <span class="slice-label-${index}" style="--slice-color:${moduleColors[item.name] || "#9aa6b2"}">
-          <i></i>${item.name === "KA" ? "KA" : item.name.slice(0, 1)} ${value}
+          <i></i>${moduleShortLabel(item.name)} ${value}
         </span>
       `;
     })
@@ -841,6 +891,7 @@ function openFollow(customer) {
   $("#firstVisitLabel").textContent = isLevel1 ? "第一次客户预计到访时间" : "第一次客户到访时间";
   $("#firstVisitDate").textContent = fmt(customer.visitDate || customer.plannedVisit, "未记录");
   $("#lastFollowTime").textContent = fmtTime(customer.followUp?.updatedAt);
+  $("#lastFollowNote").textContent = fmt(customer.followUp?.latestSituation, "暂无上次跟进描摹");
   $("#acquiredDateLabel").textContent = isLevel1 ? "获客日期" : "到访日期";
   $("#acquiredDate").textContent = fmt(isLevel1 ? customer.acquiredAt : customer.visitDate, "未记录");
   $("#followResultLabel").textContent = isLevel1 ? "转访确认/今日结果" : "到访确认/今日结果";
@@ -919,13 +970,19 @@ async function saveTargets() {
     effective: targetNumber($("#targetEffective").value),
     closed: targetNumber($("#targetClosed").value),
   };
-  await getJson(`/api/targets?${scopeParams().toString()}`, {
+  await getJson("/api/targets", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+  $("#targetDialog").close();
   showToast("指标已保存");
   await loadSummary();
+}
+
+function openTargetEditor() {
+  renderTargets();
+  $("#targetDialog").showModal();
 }
 
 async function dedupeCustomers() {
@@ -976,7 +1033,11 @@ function bindEvents() {
   });
   $("#addCustomerBtn").addEventListener("click", () => addManualCustomer().catch((error) => showToast(error.message, true)));
   $("#dedupeBtn").addEventListener("click", () => dedupeCustomers().catch((error) => showToast(error.message, true)));
-  $("#saveTargetsBtn").addEventListener("click", () => saveTargets().catch((error) => showToast(error.message, true)));
+  $("#editTargetsBtn").addEventListener("click", () => openTargetEditor());
+  $("#saveTargetsBtn").addEventListener("click", (event) => {
+    event.preventDefault();
+    saveTargets().catch((error) => showToast(error.message, true));
+  });
   $("#importLevelSwitch").addEventListener("click", (event) => {
     const button = event.target.closest("button[data-import-level]");
     if (!button) return;

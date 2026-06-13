@@ -765,6 +765,10 @@ function targetScopeKey(params) {
   return "all";
 }
 
+function currentMonthTargetParams() {
+  return new URLSearchParams({ dateScope: "month", month: todayText().slice(0, 7) });
+}
+
 function normalizeTargets(value = {}) {
   return {
     visits: numberValue(value.visits),
@@ -784,6 +788,7 @@ function buildTargetStatus(store, params, level2Summary) {
   };
   return {
     key,
+    month: params.get("month") || todayText().slice(0, 7),
     ...saved,
     achieved: metrics,
     rates: {
@@ -1212,6 +1217,9 @@ const server = http.createServer(async (req, res) => {
         .sort((a, b) => a.expectedVisitDate.localeCompare(b.expectedVisitDate) || a.owner.localeCompare(b.owner, "zh-CN"));
       const level1Summary = buildLevelSummary("level1", level1);
       const level2Summary = buildLevelSummary("level2", level2);
+      const targetParams = currentMonthTargetParams();
+      const targetLevel2 = filterByDateScope(level2All, targetParams);
+      const targetLevel2Summary = buildLevelSummary("level2", targetLevel2);
 
       return sendJson(res, 200, {
         ok: true,
@@ -1223,7 +1231,7 @@ const server = http.createServer(async (req, res) => {
           year: url.searchParams.get("year") || todayText().slice(0, 4),
         },
         dueMeta,
-        targets: buildTargetStatus(store, url.searchParams, level2Summary),
+        targets: buildTargetStatus(store, targetParams, targetLevel2Summary),
         summary: {
           level1: level1Summary,
           level2: level2Summary,
@@ -1242,7 +1250,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/targets" && req.method === "POST") {
       const body = await readBody(req);
       const store = await loadStore();
-      const key = targetScopeKey(url.searchParams);
+      const key = targetScopeKey(currentMonthTargetParams());
       store.targets = {
         ...(store.targets || {}),
         [key]: {
